@@ -4,10 +4,12 @@ using namespace metal;
 struct VertexIn {
     float3 position [[attribute(0)]];
     float3 normal   [[attribute(1)]];
+    float3 color    [[attribute(2)]];
 };
 
 struct SceneUniforms {
     float4x4 lightViewProjMatrix;
+    float4x4 cameraProjMatrix;
     float4x4 cameraViewProjMatrix;
     float3   lightPos;
 };
@@ -21,6 +23,7 @@ struct VertexOut {
     float3 worldPos;
     float3 normal;
     float3 shadowCoord;
+    float3 color;
 };
 
 vertex VertexOut main_vertex(VertexIn in [[stage_in]],
@@ -35,7 +38,8 @@ vertex VertexOut main_vertex(VertexIn in [[stage_in]],
     out.position = scene.cameraViewProjMatrix * worldPos;
 
     float4 lightPos = scene.lightViewProjMatrix * worldPos;
-    out.shadowCoord = (lightPos.xyz / lightPos.w) * 0.5 + float3(0.5, 0.5, 0.5);
+    out.shadowCoord = (lightPos.xyz / lightPos.w) * float3(0.5, 0.5, 1) * float3(1, -1, 1) + float3(0.5, 0.5, 0.0);
+    out.color = in.color;
     return out;
 }
 
@@ -44,19 +48,15 @@ fragment float4 main_fragment(VertexOut in [[stage_in]],
                               sampler shadowSampler [[sampler(0)]],
                               constant SceneUniforms &scene [[buffer(2)]])
 {
-    float3 lightDir = normalize(scene.lightPos - in.worldPos);
-    float ndotl = max(dot(in.normal, lightDir), 0.0);
-
     // shadowMap.sample_compare: 1.0 -> lit, 0.0 -> in shadow
     float shadow = shadowMap.sample(shadowSampler, in.shadowCoord.xy);
 //    float shadow = shadowMap.sample_compare(shadowSampler, in.shadowCoord.xy, in.shadowCoord.z);
-    return float4(shadow, 0, 0, 1);
     if (shadow < in.shadowCoord.z) {
         shadow = 0.0;
     } else {
         shadow = 1.0;
     }
-    float visibility = (shadow > 0.5) ? 1.0 : 0.3;
+    float visibility = (shadow > 0.5) ? 1.0 : 0.1;
 
-    return float4(ndotl * visibility, ndotl * visibility, ndotl * visibility,  1.0);
+    return float4(in.color.x * visibility, in.color.y * visibility, in.color.z * visibility, 1);
 }

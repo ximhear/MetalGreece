@@ -4,10 +4,12 @@ using namespace metal;
 struct VertexIn {
     float3 position [[attribute(0)]];
     float3 normal   [[attribute(1)]];
+    float3 color    [[attribute(2)]];
 };
 
 struct SceneUniforms {
     float4x4 lightViewProjMatrix;
+    float4x4 cameraProjMatrix;
     float4x4 cameraViewProjMatrix; // not used here
     float3   lightPos;
 };

@@ -10,6 +10,7 @@ import simd
 
 struct SceneUniforms {
     var lightViewProjMatrix: float4x4
+    var cameraProjMatrix: float4x4
     var cameraViewProjMatrix: float4x4
     var lightPos: SIMD3<Float>
 }
@@ -29,6 +30,7 @@ class Renderer {
 
     var sceneUniforms = SceneUniforms(
         lightViewProjMatrix: matrix_identity_float4x4,
+        cameraProjMatrix: matrix_identity_float4x4,
         cameraViewProjMatrix: matrix_identity_float4x4,
         lightPos: [0,3,0] // 빛을 삼각형 위에 배치
     )
@@ -38,21 +40,22 @@ class Renderer {
 
     var sceneUniformBuffer: MTLBuffer!
     var modelUniformBuffer: MTLBuffer!
+    var rotation: Float = 0
 
     // 삼각형과 평면 정점 데이터 (position + normal)
     let vertices: [Float] = [
         // 삼각형
-        // pos          normal
-        0, 0, 0,       0, 1, 0,
-        1, 0, 1,       0, 1, 0,
-        0, 0, 1,       0, 1, 0,
+        // pos          normal   color
+        0, 0.5, -1,       0, 1, 0,  1, 0, 0,
+        1, 0.5, 1,       0, 1, 0,  1, 0, 0,
+        -1, 0.5, 1,       0, 1, 0,  1, 0, 0,
 
         // 평면 (사각형)
-        // pos          normal
-        -1, -0.2, -1,     0, 1, 0,
-        1, -0.2, -1,      0, 1, 0,
-        -1, -0.2, 1,      0, 1, 0,
-        1, -0.2, 1,       0, 1, 0
+        // pos          normal        color
+        -2, -0.5, -2,     0, 1, 0,    0, 1, 0,
+        2, -0.5, -2,      0, 1, 0,    0, 1, 0,
+        -2, -0.5, 2,      0, 1, 0,    0, 1, 0,
+        2, -0.5, 2,       0, 1, 0,    0, 1, 0,
     ]
     let indices: [UInt16] = [
         // 삼각형
@@ -64,6 +67,7 @@ class Renderer {
     ]
     var vertexBuffer: MTLBuffer!
     var indexBuffer: MTLBuffer!
+    let depthWidth: Int = 1024 * 2
 
     init?(mtkView: MTKView) {
         guard let dev = mtkView.device else { return nil }
@@ -90,10 +94,11 @@ class Renderer {
 
         // 쉐도우 맵용 깊이 텍스처
         let shadowMapDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float,
-                                                                     width: 1024,
-                                                                     height: 1024,
+                                                                     width: depthWidth,
+                                                                     height: depthWidth,
                                                                      mipmapped: false)
         shadowMapDesc.storageMode = .private
+//        shadowMapDesc.storageMode = .shared
         shadowMapDesc.usage = [.renderTarget, .shaderRead]
         shadowDepthTexture = device.makeTexture(descriptor: shadowMapDesc)
 
@@ -113,9 +118,13 @@ class Renderer {
         vertexDescriptor.attributes[0].bufferIndex = 2
         // normal
         vertexDescriptor.attributes[1].format = .float3
-        vertexDescriptor.attributes[1].offset = MemoryLayout<Float>.size*3
+        vertexDescriptor.attributes[1].offset = MemoryLayout<Float>.size * 3
         vertexDescriptor.attributes[1].bufferIndex = 2
-        vertexDescriptor.layouts[2].stride = MemoryLayout<Float>.size * 6
+        // color
+        vertexDescriptor.attributes[2].format = .float3
+        vertexDescriptor.attributes[2].offset = MemoryLayout<Float>.size * 6
+        vertexDescriptor.attributes[2].bufferIndex = 2
+        vertexDescriptor.layouts[2].stride = MemoryLayout<Float>.size * 9
 
         // Shadow Pipeline (depth-only)
         let shadowPSODesc = MTLRenderPipelineDescriptor()
@@ -150,14 +159,13 @@ class Renderer {
     func setupMatrices(viewSize: CGSize) {
         let aspect = Float(viewSize.width/viewSize.height)
         // LH Perspective for camera
-        sceneUniforms.cameraViewProjMatrix =
-            perspectiveMatrixLH(aspect: aspect, fovY: Float.pi/4, nearZ: 0.1, farZ: 1000) *
-            lookAtLH(eye: [0,1,-5], center: [0,0,0], up: [0,1,0])
+        sceneUniforms.cameraProjMatrix = perspectiveMatrixLH(aspect: aspect, fovY: Float.pi / 6, nearZ: 0.1, farZ: 1000)
 
         // LH Orthographic for light (빛의 관점)
         sceneUniforms.lightViewProjMatrix =
-            orthographicMatrixLH(left: -5, right: 5, bottom: -5, top: 5, near: -20, far: 20) *
-            lookAtLH(eye: sceneUniforms.lightPos, center: [0,0,0], up: [0,1,0])
+//        perspectiveMatrixLH(aspect: aspect, fovY: Float.pi / 6, nearZ: 0.1, farZ: 1000) *
+        orthographicMatrixLH(left: -5, right: 5, bottom: -5, top: 5, near: -20, far: 20) *
+        float4x4(translation: [0, 0, 8]) * rotateX(-Float.pi / 2) // 빛을 삼각형 위에 배치
     }
 
     func resize(size: CGSize) {
@@ -165,9 +173,13 @@ class Renderer {
     }
 
     func draw(in view: MTKView) {
+        rotation += 0.01
+        
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
               let drawable = view.currentDrawable,
               let rpd = view.currentRenderPassDescriptor else { return }
+        
+        sceneUniforms.cameraViewProjMatrix = sceneUniforms.cameraProjMatrix * float4x4(translation: [0, 0, 18]) * rotateX(-Float.pi / 10) * rotateY(rotation)
 
         memcpy(sceneUniformBuffer.contents(), &sceneUniforms, MemoryLayout<SceneUniforms>.size)
         memcpy(modelUniformBuffer.contents(), &modelUniforms, MemoryLayout<ModelUniforms>.size)
@@ -193,7 +205,6 @@ class Renderer {
             shadowEncoder.endEncoding()
         }
 
-        // Main Pass (camera POV)
         rpd.depthAttachment.clearDepth = 1.0
         if let mainEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: rpd) {
             mainEncoder.setRenderPipelineState(mainRenderPipeline)
