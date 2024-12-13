@@ -56,7 +56,7 @@ fragment float4 main_fragment(VertexOut in [[stage_in]],
     } else {
         shadow = 1.0;
     }
-    float visibility = (shadow > 0.5) ? 1.0 : 0.1;
+    float visibility = (shadow > 0.5) ? 1.0 : 0.6;
 
     return float4(in.color.x * visibility, in.color.y * visibility, in.color.z * visibility, 1);
 }
