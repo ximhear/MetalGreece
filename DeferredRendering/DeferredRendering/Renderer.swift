@@ -47,103 +47,104 @@ class Renderer: NSObject, MTKViewDelegate {
     }
 
     func buildResources() {
-
-        let phi: Float = (1.0 + sqrt(5.0)) / 2.0 // 황금비
-
-        // 12개의 꼭짓점 정의 (Left-handed 좌표계에 맞게 Z축 값 반전)
+        
         let vertices: [Vertex] = [
-            Vertex(position: [-1,  phi,  0], normal: [-1,  phi,  0], uv: [0, 0], color: [1, 0, 0]),
-            Vertex(position: [ 1,  phi,  0], normal: [ 1,  phi,  0], uv: [1, 0], color: [1, 0, 0]),
-            Vertex(position: [-1, -phi,  0], normal: [-1, -phi,  0], uv: [0, 1], color: [1, 0, 0]),
-            Vertex(position: [ 1, -phi,  0], normal: [ 1, -phi,  0], uv: [1, 1], color: [1, 0, 0]),
+            // Front face (z = -0.5, normal = (0,0,-1))
+            // 카메라가 (0,0,-3)에 있고 +Z를 바라볼 때, 이 면이 카메라 앞에 놓이도록 함.
+            Vertex(position: [-0.5, -0.5, -0.5], normal: [0, 0, -1], uv: [0, 0], color: [1, 0, 0]),
+            Vertex(position: [ 0.5, -0.5, -0.5], normal: [0, 0, -1], uv: [1, 0], color: [1, 0, 0]),
+            Vertex(position: [ 0.5,  0.5, -0.5], normal: [0, 0, -1], uv: [1, 1], color: [1, 0, 0]),
+            Vertex(position: [-0.5,  0.5, -0.5], normal: [0, 0, -1], uv: [0, 1], color: [1, 0, 0]),
             
-            Vertex(position: [ 0, -1, -phi], normal: [ 0, -1, -phi], uv: [0, 0], color: [0, 1, 0]),
-            Vertex(position: [ 0,  1, -phi], normal: [ 0,  1, -phi], uv: [1, 0], color: [0, 1, 0]),
-            Vertex(position: [ 0, -1,  phi], normal: [ 0, -1,  phi], uv: [0, 1], color: [0, 1, 0]),
-            Vertex(position: [ 0,  1,  phi], normal: [ 0,  1,  phi], uv: [1, 1], color: [0, 1, 0]),
+            // Back face (z = +0.5, normal = (0,0,1))
+            Vertex(position: [-0.5, -0.5,  0.5], normal: [0, 0, 1], uv: [0, 0], color: [0, 0.1, 0]), // green
+            Vertex(position: [-0.5,  0.5,  0.5], normal: [0, 0, 1], uv: [0, 1], color: [0, 1, 0]),
+            Vertex(position: [ 0.5,  0.5,  0.5], normal: [0, 0, 1], uv: [1, 1], color: [0, 0.1, 0]),
+            Vertex(position: [ 0.5, -0.5,  0.5], normal: [0, 0, 1], uv: [1, 0], color: [0, 1, 0]),
             
-            Vertex(position: [ phi,  0,  1], normal: [ phi,  0,  1], uv: [0, 0], color: [0, 0, 1]),
-            Vertex(position: [ phi,  0, -1], normal: [ phi,  0, -1], uv: [1, 0], color: [0, 0, 1]),
-            Vertex(position: [-phi,  0,  1], normal: [-phi,  0,  1], uv: [0, 1], color: [0, 0, 1]),
-            Vertex(position: [-phi,  0, -1], normal: [-phi,  0, -1], uv: [1, 1], color: [0, 0, 1]),
+            // Left face (x = -0.5, normal = (-1,0,0))
+            Vertex(position: [-0.5, -0.5, -0.5], normal: [-1, 0, 0], uv: [1, 0], color: [0, 0, 1]), // blue
+            Vertex(position: [-0.5,  0.5, -0.5], normal: [-1, 0, 0], uv: [1, 1], color: [0, 0, 1]),
+            Vertex(position: [-0.5,  0.5,  0.5], normal: [-1, 0, 0], uv: [0, 1], color: [0, 0, 1]),
+            Vertex(position: [-0.5, -0.5,  0.5], normal: [-1, 0, 0], uv: [0, 0], color: [0, 0, 1]),
+            
+            // Right face (x = +0.5, normal = (1,0,0))
+            Vertex(position: [ 0.5, -0.5, -0.5], normal: [1, 0, 0], uv: [0, 0], color: [1, 1, 0]), // yellow
+            Vertex(position: [ 0.5, -0.5,  0.5], normal: [1, 0, 0], uv: [1, 0], color: [1, 1, 0]),
+            Vertex(position: [ 0.5,  0.5,  0.5], normal: [1, 0, 0], uv: [1, 1], color: [1, 1, 0]),
+            Vertex(position: [ 0.5,  0.5, -0.5], normal: [1, 0, 0], uv: [0, 1], color: [1, 1, 0]),
+            
+            // Top face (y = +0.5, normal = (0,1,0))
+            Vertex(position: [-0.5,  0.5, -0.5], normal: [0, 1, 0], uv: [0, 0], color: [1, 0, 1]),
+            Vertex(position: [ 0.5,  0.5, -0.5], normal: [0, 1, 0], uv: [1, 0], color: [1, 0, 1]),
+            Vertex(position: [ 0.5,  0.5,  0.5], normal: [0, 1, 0], uv: [1, 1], color: [1, 0, 1]),
+            Vertex(position: [-0.5,  0.5,  0.5], normal: [0, 1, 0], uv: [0, 1], color: [1, 0, 1]),
+            
+            // Bottom face (y = -0.5, normal = (0,-1,0))
+            Vertex(position: [-0.5, -0.5, -0.5], normal: [0, -1, 0], uv: [0, 1], color: [0, 1, 1]),
+            Vertex(position: [-0.5, -0.5,  0.5], normal: [0, -1, 0], uv: [0, 0], color: [0, 1, 1]),
+            Vertex(position: [ 0.5, -0.5,  0.5], normal: [0, -1, 0], uv: [1, 0], color: [0, 1, 1]),
+            Vertex(position: [ 0.5, -0.5, -0.5], normal: [0, -1, 0], uv: [1, 1], color: [0, 1, 1]),
         ]
-
-        // 20개의 삼각형 면 정의 (CW: 시계 방향)
+        
         let indices: [UInt16] = [
-            0, 5, 11,
-            0, 1, 5,
-            0, 7, 1,
-            0, 10, 7,
-            0, 11, 10,
-            
-            1, 9, 5,
-            5, 4, 11,
-            11, 2, 10,
-            10, 6, 7,
-            7, 8, 1,
-            
-            3, 4, 9,
-            3, 2, 4,
-            3, 6, 2,
-            3, 8, 6,
-            3, 9, 8,
-            
-            4, 5, 9,
-            2, 11, 4,
-            6, 10, 2,
-            8, 7, 6,
-            9, 1, 8,
+            // Front (주의: 정점 순서 바꾸었음: CCW를 위해 0->1->2->2->3->0에서 0->1->2->2->3->0 그대로 둬도 정상 동작.
+            // 위에서 프론트 페이스 정점을 CCW가 되도록 재정렬했으므로 인덱스는 변경 불필요)
+            0, 1, 2, 2, 3, 0,
+            // Back
+            4, 5, 6, 6, 7, 4,
+            // Left
+            8, 9, 10, 10, 11, 8,
+            // Right
+            12, 13, 14, 14, 15, 12,
+            // Top
+            16, 17, 18, 18, 19, 16,
+            // Bottom
+            20, 21, 22, 22, 23, 20
         ]
-
-
-
-        // 이로써 front face는 z = -0.5에 위치하고, 카메라(0,0,-3)에서 바라볼 때 CCW로 보여지고, cullMode = .back 사용할 경우 올바른 전면 렌더링이 이뤄집니다.
-
-        // cullMode = .back 사용
-        // 이 상태로 Left-Handed 좌표계에서 +Z를 바라보는 카메라 기준 front face는 CCW.
-
-
+        
         vertexBuffer = device.makeBuffer(bytes: vertices,
                                          length: MemoryLayout<Vertex>.size * vertices.count,
                                          options: [])
         indexBuffer = device.makeBuffer(bytes: indices,
                                         length: MemoryLayout<UInt16>.size * indices.count,
                                         options: [])
-
+        
+        let coordX: Float = 0.8
         let quadVertices: [Float] = [
-            -0.5, -0.5, 0.0,
-             0.5, -0.5, 0.0,
-             0.5,  0.5, 0.0,
+            -coordX, -coordX, 0.0,
+             coordX, -coordX, 0.0,
+             coordX,  coordX, 0.0,
              
-             -0.5, -0.5, 0.0,
-             0.5,  0.5, 0.0,
-            -0.5,  0.5, 0.0
+             -coordX, -coordX, 0.0,
+             coordX,  coordX, 0.0,
+             -coordX,  coordX, 0.0
         ]
         quadVertexBuffer = device.makeBuffer(bytes: quadVertices,
                                              length: MemoryLayout<Float>.size * quadVertices.count,
                                              options: [])
         GZLogFunc(MemoryLayout<Float>.size * quadVertices.count)
-
+        
         let fovY: Float = radians_from_degrees(60.0)
         let aspect: Float = 1.0
         let near: Float = 0.1
         let far: Float = 100.0
-
+        
         let projectionMatrix = leftHandedPerspectiveFOV(fovY: fovY, aspect: aspect, near: near, far: far)
         let viewMatrix = float4x4Translation([0, 0, 6])//lookAtLH(eye: [0, 0, -1], target: [0, 0, 0], up: [0, 1, 0])
         let modelMatrix = matrix_identity_float4x4
-
+        
         let mvpMatrix = projectionMatrix * viewMatrix * modelMatrix
-
+        
         var uni = Uniforms(modelViewProj: mvpMatrix, modelMatrix: modelMatrix)
         uniformBuffer = device.makeBuffer(bytes: &uni, length: MemoryLayout<Uniforms>.size, options: [])
         
-//        let orthoMatrix = orthographicMatrixLH(left: -1,
-//                                               right: 1,
-//                                               bottom: -1,
-//                                               top: 1,
-//                                               near: -1,
-//                                               far: 1)
+        //        let orthoMatrix = orthographicMatrixLH(left: -1,
+        //                                               right: 1,
+        //                                               bottom: -1,
+        //                                               top: 1,
+        //                                               near: -1,
+        //                                               far: 1)
         let orthoMatrix = orthographicMatrix(left: -1, right: 1, bottom: -1, top: 1, nearZ: -1, farZ: 1)
         var uni1 = Uniforms(modelViewProj: orthoMatrix * float4x4Translation([0, 0, 0.1]), modelMatrix: matrix_identity_float4x4)
         uniformBuffer1 = device.makeBuffer(bytes: &uni1, length: MemoryLayout<Uniforms>.size, options: [])
@@ -264,8 +265,8 @@ class Renderer: NSObject, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         rotation += 0.01
-        let viewMatrix = float4x4Translation([0, 0, 10])//lookAtLH(eye: [0, 0, -1], target: [0, 0, 0], up: [0, 1, 0])
-        let modelMatrix = rotateX(rotation) * rotateY(rotation)
+        let viewMatrix = float4x4Translation([0, 0, 6])//lookAtLH(eye: [0, 0, -1], target: [0, 0, 0], up: [0, 1, 0])
+        let modelMatrix = rotateX(rotation) * rotateY(rotation * 2.0)
         let mvpMatrix = projectionMatrix * viewMatrix * modelMatrix
 
         var uni = Uniforms(modelViewProj: mvpMatrix, modelMatrix: modelMatrix)
@@ -283,12 +284,12 @@ class Renderer: NSObject, MTKViewDelegate {
         geoPassDesc.colorAttachments[0].texture = albedoTexture
         geoPassDesc.colorAttachments[0].loadAction = .clear
         geoPassDesc.colorAttachments[0].storeAction = .store
-        geoPassDesc.colorAttachments[0].clearColor = MTLClearColorMake(0.5, 0.5, 0.5, 1)
+        geoPassDesc.colorAttachments[0].clearColor = MTLClearColorMake(0.01, 0.01, 0.98, 1.0)
 
         geoPassDesc.colorAttachments[1].texture = normalTexture
         geoPassDesc.colorAttachments[1].loadAction = .clear
         geoPassDesc.colorAttachments[1].storeAction = .store
-        geoPassDesc.colorAttachments[1].clearColor = MTLClearColorMake(0, 0, 0, 1)
+        geoPassDesc.colorAttachments[1].clearColor = MTLClearColorMake(0.5, 0.5, -1.0, 1)
 
         geoPassDesc.depthAttachment.texture = depthTexture
         geoPassDesc.depthAttachment.loadAction = .clear
