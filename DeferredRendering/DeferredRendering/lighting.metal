@@ -56,6 +56,6 @@ fragment float4 lighting_fragment(VertexOut in [[stage_in]],
 //
     float3 litColor = albedo.rgb * NdotL; // Multiply light intensity by albedo
 //    return float4(uv.x, uv.y, 0, 1.0);         // Output the final lit color
-    return float4(albedo.rgb, 1.0);         // Output the final lit color
-//    return float4(litColor, 1.0);         // Output the final lit color
+//    return float4(albedo.rgb, 1.0);         // Output the final lit color
+    return float4(litColor, 1.0);         // Output the final lit color
 }

@@ -32,7 +32,9 @@ class Renderer: NSObject, MTKViewDelegate {
     var indexBuffer: MTLBuffer!
     var faceBuffer: MTLBuffer!
     var quadVertexBuffer: MTLBuffer!
-    var rotation: Float = 0
+    var rotationX: Float = 0
+    var rotationY: Float = 0
+    var rotationZ: Float = 0
 
     struct Uniforms {
         var modelViewProj: simd_float4x4
@@ -74,42 +76,32 @@ class Renderer: NSObject, MTKViewDelegate {
 
         let vertexPositions: [SIMD3<Float>] = rawPositions.map { $0 * scale }
 
-        // 색상 배열
-        let colors: [SIMD3<Float>] = [
-            SIMD3<Float>(1.0, 0.0, 0.0), // red
-            SIMD3<Float>(0.0, 1.0, 0.0), // green
-            SIMD3<Float>(0.0, 0.0, 1.0), // blue
-            SIMD3<Float>(0.0, 1.0, 1.0), // cyan
-            SIMD3<Float>(1.0, 0.0, 1.0), // magenta
-            SIMD3<Float>(1.0, 1.0, 0.0), // yellow
-        ]
-
         let vertices: [Vertex] = vertexPositions.enumerated().map { (i, pos) in
             return Vertex(position: pos)
         }
 
         // 정20면체 인덱스
         let indices: [UInt16] = [
-            0, 11,  5,
-            0,  5,  1,
-            0,  1,  7,
-            0,  7, 10,
-            0, 10, 11,
-            1,  5,  9,
-            5, 11,  4,
-            11,10,  2,
-            10, 7,  6,
-            7,  1,  8,
-            3,  9,  4,
-            3,  4,  2,
-            3,  2,  6,
-            3,  6,  8,
-            3,  8,  9,
-            4,  9,  5,
-            2,  4, 11,
-            6,  2, 10,
-            8,  6,  7,
-            9,  8,  1
+             0,  5, 11,
+             0,  1,  5,
+             0,  7,  1,
+             0, 10,  7,
+             0, 11, 10,
+             1,  9,  5,
+             5,  4, 11,
+            11,  2, 10,
+            10,  6,  7,
+             7,  8,  1,
+             3,  4,  9,
+             3,  2,  4,
+             3,  6,  2,
+             3,  8,  6,
+             3,  9,  8,
+             4,  5,  9,
+             2, 11,  4,
+             6, 10,  2,
+             8,  7,  6,
+             9,  1,  8
         ]
         
         let faceColors: [SIMD3<Float>] = [
@@ -135,9 +127,10 @@ class Renderer: NSObject, MTKViewDelegate {
             let p2 = vertices[Int(i2)].position
             
             // 외적을 통한 face normal 계산
-            let v1 = p1 - p0
-            let v2 = p2 - p0
+            let v1 = p2 - p0
+            let v2 = p1 - p0
             let faceNormal = normalize(cross(v1, v2))
+//            let faceNormal = normalize(p0 + p1 + p2)
             
             // face color 할당 (6가지 색상 반복)
             let color = faceColors[i % faceColors.count]
@@ -306,9 +299,11 @@ class Renderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
-        rotation += 0.01
+        rotationX += 0.01
+        rotationY += 0.015
+        rotationZ += 0.02
         let viewMatrix = float4x4Translation([0, 0, 6])//lookAtLH(eye: [0, 0, -1], target: [0, 0, 0], up: [0, 1, 0])
-        let modelMatrix = rotateX(rotation) * rotateY(rotation * 2.0)
+        let modelMatrix = rotateX(rotationX) * rotateY(rotationY) * rotateZ(rotationZ)
         let mvpMatrix = projectionMatrix * viewMatrix * modelMatrix
 
         var uni = Uniforms(modelViewProj: mvpMatrix, modelMatrix: modelMatrix)
@@ -326,7 +321,7 @@ class Renderer: NSObject, MTKViewDelegate {
         geoPassDesc.colorAttachments[0].texture = albedoTexture
         geoPassDesc.colorAttachments[0].loadAction = .clear
         geoPassDesc.colorAttachments[0].storeAction = .store
-        geoPassDesc.colorAttachments[0].clearColor = MTLClearColorMake(0.01, 0.01, 0.98, 1.0)
+        geoPassDesc.colorAttachments[0].clearColor = MTLClearColorMake(51 / 255.0, 51 / 255.0, 1.0, 1.0)
 
         geoPassDesc.colorAttachments[1].texture = normalTexture
         geoPassDesc.colorAttachments[1].loadAction = .clear
@@ -350,7 +345,7 @@ class Renderer: NSObject, MTKViewDelegate {
             encoder.setCullMode(.back)
 
             encoder.drawIndexedPrimitives(type: .triangle,
-                                          indexCount: 36,
+                                          indexCount: 60,
                                           indexType: .uint16,
                                           indexBuffer: indexBuffer,
                                           indexBufferOffset: 0)
@@ -468,5 +463,16 @@ func rotateX(_ angle: Float) -> float4x4 {
         SIMD4<Float>(0, c, s, 0),
         SIMD4<Float>(0, -s, c, 0),
         SIMD4<Float>(0, 0, 0, 1)
+    ])
+}
+
+func rotateZ(_ angle: Float) -> float4x4 {
+    let c = cos(angle)
+    let s = sin(angle)
+    return float4x4([
+        SIMD4<Float>( c, s, 0, 0),
+        SIMD4<Float>(-s, c, 0, 0),
+        SIMD4<Float>( 0, 0, 1, 0),
+        SIMD4<Float>( 0, 0, 0, 1)
     ])
 }

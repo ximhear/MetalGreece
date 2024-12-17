@@ -14,7 +14,6 @@ struct VertexIn {
 
 // Face 구조체: CPU 측에서 구성하여 buffer에 담아둠
 struct Face {
-    ushort3 indices;
     float3 normal;
     float3 color;
 };
