@@ -10,9 +10,13 @@ using namespace metal;
 
 struct VertexIn {
     float3 position [[attribute(0)]];
-    float3 normal   [[attribute(1)]];
-    float2 uv       [[attribute(2)]];
-    float3 color       [[attribute(3)]];
+};
+
+// Face 구조체: CPU 측에서 구성하여 buffer에 담아둠
+struct Face {
+    ushort3 indices;
+    float3 normal;
+    float3 color;
 };
 
 struct Uniforms {
@@ -22,9 +26,6 @@ struct Uniforms {
 
 struct VertexOut {
     float4 position [[position]];
-    float3 normal;
-    float2 uv;
-    float3 color;
 };
 
 struct GBufferOut {
@@ -41,22 +42,22 @@ vertex VertexOut geometry_vertex(uint vid [[vertex_id]],
     float3 pos = vertices[vid].position;
     out.position = u.modelViewProj * float4(pos, 1.0);
     
-    out.normal = (u.modelMatrix * float4(vertices[vid].normal, 1)).xyz; // Normal is passed as-is
-    out.uv = vertices[vid].uv;         // UV coordinates are passed as-is
-    out.color = vertices[vid].color;
-    
     return out;
 }
 
-fragment GBufferOut geometry_fragment(VertexOut in [[stage_in]]) {
+fragment GBufferOut geometry_fragment(VertexOut in [[stage_in]],
+                                      constant Uniforms &u [[buffer(1)]],
+                                      constant Face *faces [[buffer(2)]],
+                                      uint primID [[primitive_id]]) {
     GBufferOut out;
 
-    // Apply a fixed albedo color (pink)
-//    out.albedo = float4(1.0, 0.0, 0.0, 1.0);
-    out.albedo = float4(in.color, 1);
+    // 현재 처리중인 픽셀이 속한 Face 데이터 획득
+    Face f = faces[primID];
+    out.albedo = float4(f.color, 1.0);
 
     // Transform normal to the 0-1 range for MRT output
-    float3 N = normalize(in.normal);
+    float3 normal = (u.modelMatrix * float4(f.normal, 1)).xyz; // Normal is passed as-is
+    float3 N = normalize(normal);
     out.normal = float4(N * 0.5 + 0.5, 1.0);
 
     return out;

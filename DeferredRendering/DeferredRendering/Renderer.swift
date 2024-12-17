@@ -10,10 +10,13 @@ import simd
 
 struct Vertex {
     var position: SIMD3<Float>
+}
+
+struct Face {
     var normal: SIMD3<Float>
-    var uv: SIMD2<Float>
     var color: SIMD3<Float>
 }
+
 class Renderer: NSObject, MTKViewDelegate {
     var device: MTLDevice!
     var commandQueue: MTLCommandQueue!
@@ -27,6 +30,7 @@ class Renderer: NSObject, MTKViewDelegate {
 
     var vertexBuffer: MTLBuffer!
     var indexBuffer: MTLBuffer!
+    var faceBuffer: MTLBuffer!
     var quadVertexBuffer: MTLBuffer!
     var rotation: Float = 0
 
@@ -48,68 +52,110 @@ class Renderer: NSObject, MTKViewDelegate {
 
     func buildResources() {
         
-        let vertices: [Vertex] = [
-            // Front face (z = -0.5, normal = (0,0,-1))
-            // 카메라가 (0,0,-3)에 있고 +Z를 바라볼 때, 이 면이 카메라 앞에 놓이도록 함.
-            Vertex(position: [-0.5, -0.5, -0.5], normal: [0, 0, -1], uv: [0, 0], color: [1, 0, 0]),
-            Vertex(position: [ 0.5, -0.5, -0.5], normal: [0, 0, -1], uv: [1, 0], color: [1, 0, 0]),
-            Vertex(position: [ 0.5,  0.5, -0.5], normal: [0, 0, -1], uv: [1, 1], color: [1, 0, 0]),
-            Vertex(position: [-0.5,  0.5, -0.5], normal: [0, 0, -1], uv: [0, 1], color: [1, 0, 0]),
-            
-            // Back face (z = +0.5, normal = (0,0,1))
-            Vertex(position: [-0.5, -0.5,  0.5], normal: [0, 0, 1], uv: [0, 0], color: [0, 0.1, 0]), // green
-            Vertex(position: [-0.5,  0.5,  0.5], normal: [0, 0, 1], uv: [0, 1], color: [0, 1, 0]),
-            Vertex(position: [ 0.5,  0.5,  0.5], normal: [0, 0, 1], uv: [1, 1], color: [0, 0.1, 0]),
-            Vertex(position: [ 0.5, -0.5,  0.5], normal: [0, 0, 1], uv: [1, 0], color: [0, 1, 0]),
-            
-            // Left face (x = -0.5, normal = (-1,0,0))
-            Vertex(position: [-0.5, -0.5, -0.5], normal: [-1, 0, 0], uv: [1, 0], color: [0, 0, 1]), // blue
-            Vertex(position: [-0.5,  0.5, -0.5], normal: [-1, 0, 0], uv: [1, 1], color: [0, 0, 1]),
-            Vertex(position: [-0.5,  0.5,  0.5], normal: [-1, 0, 0], uv: [0, 1], color: [0, 0, 1]),
-            Vertex(position: [-0.5, -0.5,  0.5], normal: [-1, 0, 0], uv: [0, 0], color: [0, 0, 1]),
-            
-            // Right face (x = +0.5, normal = (1,0,0))
-            Vertex(position: [ 0.5, -0.5, -0.5], normal: [1, 0, 0], uv: [0, 0], color: [1, 1, 0]), // yellow
-            Vertex(position: [ 0.5, -0.5,  0.5], normal: [1, 0, 0], uv: [1, 0], color: [1, 1, 0]),
-            Vertex(position: [ 0.5,  0.5,  0.5], normal: [1, 0, 0], uv: [1, 1], color: [1, 1, 0]),
-            Vertex(position: [ 0.5,  0.5, -0.5], normal: [1, 0, 0], uv: [0, 1], color: [1, 1, 0]),
-            
-            // Top face (y = +0.5, normal = (0,1,0))
-            Vertex(position: [-0.5,  0.5, -0.5], normal: [0, 1, 0], uv: [0, 0], color: [1, 0, 1]),
-            Vertex(position: [ 0.5,  0.5, -0.5], normal: [0, 1, 0], uv: [1, 0], color: [1, 0, 1]),
-            Vertex(position: [ 0.5,  0.5,  0.5], normal: [0, 1, 0], uv: [1, 1], color: [1, 0, 1]),
-            Vertex(position: [-0.5,  0.5,  0.5], normal: [0, 1, 0], uv: [0, 1], color: [1, 0, 1]),
-            
-            // Bottom face (y = -0.5, normal = (0,-1,0))
-            Vertex(position: [-0.5, -0.5, -0.5], normal: [0, -1, 0], uv: [0, 1], color: [0, 1, 1]),
-            Vertex(position: [-0.5, -0.5,  0.5], normal: [0, -1, 0], uv: [0, 0], color: [0, 1, 1]),
-            Vertex(position: [ 0.5, -0.5,  0.5], normal: [0, -1, 0], uv: [1, 0], color: [0, 1, 1]),
-            Vertex(position: [ 0.5, -0.5, -0.5], normal: [0, -1, 0], uv: [1, 1], color: [0, 1, 1]),
+        let phi: Float = (1.0 + Float(sqrt(5.0))) / 2.0
+        let length: Float = sqrt(1.0 + phi * phi)
+        let scale: Float = 1.0 / length
+
+        // 각 좌표값을 명시적으로 Float로 표시
+        let rawPositions: [SIMD3<Float>] = [
+            SIMD3<Float>(-1.0,  phi,    0.0),
+            SIMD3<Float>( 1.0,  phi,    0.0),
+            SIMD3<Float>(-1.0, -phi,    0.0),
+            SIMD3<Float>( 1.0, -phi,    0.0),
+            SIMD3<Float>( 0.0, -1.0,    phi),
+            SIMD3<Float>( 0.0,  1.0,    phi),
+            SIMD3<Float>( 0.0, -1.0,   -phi),
+            SIMD3<Float>( 0.0,  1.0,   -phi),
+            SIMD3<Float>( phi,   0.0,  -1.0),
+            SIMD3<Float>( phi,   0.0,   1.0),
+            SIMD3<Float>(-phi,   0.0,  -1.0),
+            SIMD3<Float>(-phi,   0.0,   1.0)
         ]
-        
+
+        let vertexPositions: [SIMD3<Float>] = rawPositions.map { $0 * scale }
+
+        // 색상 배열
+        let colors: [SIMD3<Float>] = [
+            SIMD3<Float>(1.0, 0.0, 0.0), // red
+            SIMD3<Float>(0.0, 1.0, 0.0), // green
+            SIMD3<Float>(0.0, 0.0, 1.0), // blue
+            SIMD3<Float>(0.0, 1.0, 1.0), // cyan
+            SIMD3<Float>(1.0, 0.0, 1.0), // magenta
+            SIMD3<Float>(1.0, 1.0, 0.0), // yellow
+        ]
+
+        let vertices: [Vertex] = vertexPositions.enumerated().map { (i, pos) in
+            return Vertex(position: pos)
+        }
+
+        // 정20면체 인덱스
         let indices: [UInt16] = [
-            // Front (주의: 정점 순서 바꾸었음: CCW를 위해 0->1->2->2->3->0에서 0->1->2->2->3->0 그대로 둬도 정상 동작.
-            // 위에서 프론트 페이스 정점을 CCW가 되도록 재정렬했으므로 인덱스는 변경 불필요)
-            0, 1, 2, 2, 3, 0,
-            // Back
-            4, 5, 6, 6, 7, 4,
-            // Left
-            8, 9, 10, 10, 11, 8,
-            // Right
-            12, 13, 14, 14, 15, 12,
-            // Top
-            16, 17, 18, 18, 19, 16,
-            // Bottom
-            20, 21, 22, 22, 23, 20
+            0, 11,  5,
+            0,  5,  1,
+            0,  1,  7,
+            0,  7, 10,
+            0, 10, 11,
+            1,  5,  9,
+            5, 11,  4,
+            11,10,  2,
+            10, 7,  6,
+            7,  1,  8,
+            3,  9,  4,
+            3,  4,  2,
+            3,  2,  6,
+            3,  6,  8,
+            3,  8,  9,
+            4,  9,  5,
+            2,  4, 11,
+            6,  2, 10,
+            8,  6,  7,
+            9,  8,  1
         ]
         
+        let faceColors: [SIMD3<Float>] = [
+            SIMD3<Float>(1.0, 0.0, 0.0), // red
+            SIMD3<Float>(0.0, 1.0, 0.0), // green
+            SIMD3<Float>(0.0, 0.0, 1.0), // blue
+            SIMD3<Float>(0.0, 1.0, 1.0), // cyan
+            SIMD3<Float>(1.0, 0.0, 1.0), // magenta
+            SIMD3<Float>(1.0, 1.0, 0.0), // yellow
+        ]
+        
+        let faceCount = indices.count / 3
+        var faces = [Face]()
+        faces.reserveCapacity(faceCount)
+
+        for i in 0..<faceCount {
+            let i0 = indices[i*3 + 0]
+            let i1 = indices[i*3 + 1]
+            let i2 = indices[i*3 + 2]
+            
+            let p0 = vertices[Int(i0)].position
+            let p1 = vertices[Int(i1)].position
+            let p2 = vertices[Int(i2)].position
+            
+            // 외적을 통한 face normal 계산
+            let v1 = p1 - p0
+            let v2 = p2 - p0
+            let faceNormal = normalize(cross(v1, v2))
+            
+            // face color 할당 (6가지 색상 반복)
+            let color = faceColors[i % faceColors.count]
+            
+            let face = Face(normal: faceNormal, color: color)
+            faces.append(face)
+        }
+
         vertexBuffer = device.makeBuffer(bytes: vertices,
                                          length: MemoryLayout<Vertex>.size * vertices.count,
                                          options: [])
         indexBuffer = device.makeBuffer(bytes: indices,
                                         length: MemoryLayout<UInt16>.size * indices.count,
                                         options: [])
-        
+        faceBuffer = device.makeBuffer(bytes: faces,
+                                        length: MemoryLayout<Face>.size * faces.count,
+                                        options: [])
+
         let coordX: Float = 0.8
         let quadVertices: [Float] = [
             -coordX, -coordX, 0.0,
@@ -161,17 +207,13 @@ class Renderer: NSObject, MTKViewDelegate {
         vertexDescriptor.attributes[0].offset = 0
         vertexDescriptor.attributes[0].bufferIndex = 0
 
-        vertexDescriptor.attributes[1].format = .float3 // Normal
-        vertexDescriptor.attributes[1].offset = 16
-        vertexDescriptor.attributes[1].bufferIndex = 0
-
-        vertexDescriptor.attributes[2].format = .float2 // UV
-        vertexDescriptor.attributes[2].offset = 32
-        vertexDescriptor.attributes[2].bufferIndex = 0
-        
-        vertexDescriptor.attributes[3].format = .float3 // Color
-        vertexDescriptor.attributes[3].offset = 48
-        vertexDescriptor.attributes[3].bufferIndex = 0
+//        vertexDescriptor.attributes[1].format = .float3 // Normal
+//        vertexDescriptor.attributes[1].offset = 16
+//        vertexDescriptor.attributes[1].bufferIndex = 0
+//
+//        vertexDescriptor.attributes[2].format = .float3 // Color
+//        vertexDescriptor.attributes[2].offset = 32
+//        vertexDescriptor.attributes[2].bufferIndex = 0
 
         vertexDescriptor.layouts[0].stride = MemoryLayout<Vertex>.stride
         vertexDescriptor.layouts[0].stepFunction = .perVertex
@@ -300,6 +342,10 @@ class Renderer: NSObject, MTKViewDelegate {
             encoder.setRenderPipelineState(geometryPipelineState)
             encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
             encoder.setVertexBuffer(uniformBuffer, offset: 0, index: 1)
+            
+            encoder.setFragmentBuffer(uniformBuffer, offset: 0, index: 1)
+            encoder.setFragmentBuffer(faceBuffer, offset: 0, index: 2)
+
             encoder.setFrontFacing(.counterClockwise)
             encoder.setCullMode(.back)
 
