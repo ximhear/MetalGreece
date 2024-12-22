@@ -21,6 +21,7 @@ struct SceneUniforms {
 
 struct ModelUniforms {
     float4x4 modelMatrix;
+    float3x3 normalMatrix;
 };
 
 struct VertexOut {
@@ -57,17 +58,35 @@ fragment float4 main_fragment(VertexOut in [[stage_in]],
                               constant Face *faces [[buffer(2)]],
                               uint primID [[primitive_id]])
 {
-    return float4(faces[primID].color, 1);
-    return float4(in.color, 1);
+    // normal to color
+//    float3 normal = model.normalMatrix * faces[primID].normal;
+//    float3 normalColor = (normal + 1.0) * 0.5;
+//    return float4(normalColor, 1);
+    
+    // face color
+//    return float4(faces[primID].color, 1);
+    
+    // vertex color
+//    return float4(in.color, 1);
+    
     // shadowMap.sample_compare: 1.0 -> lit, 0.0 -> in shadow
-    float shadow = shadowMap.sample(shadowSampler, in.shadowCoord.xy);
-//    float shadow = shadowMap.sample_compare(shadowSampler, in.shadowCoord.xy, in.shadowCoord.z);
-    if (shadow < in.shadowCoord.z) {
-        shadow = 0.0;
-    } else {
-        shadow = 1.0;
-    }
-    float visibility = (shadow > 0.5) ? 1.0 : 0.6;
+    float3 color = faces[primID].color;
+    
+//    float shadow = shadowMap.sample(shadowSampler, in.shadowCoord.xy);
+//    if (shadow < in.shadowCoord.z) {
+//        shadow = 0.0;
+//    } else {
+//        shadow = 1.0;
+//    }
+//    float visibility = (shadow > 0.5) ? 1.0 : 0.6;
+    
+    float shadow = shadowMap.sample_compare(shadowSampler, in.shadowCoord.xy, in.shadowCoord.z);
+    float visibility = mix(0.6, 1.0, shadow); // 부드러운 그림자
+    
+    float3 baseColor = color * visibility; // 기본 색상 * 가시성
+    float3 shadowColor = float3(0.0, 0.0, 0.0) * (1.0 - visibility); // 그림자 색상
+    float3 finalColor = baseColor + shadowColor; // 결합된 색상
+    return float4(finalColor, 1.0);
 
-    return float4(in.color.x * visibility, in.color.y * visibility, in.color.z * visibility, 1);
+//    return float4(color.x * visibility, color.y * visibility, color.z * visibility, 1);
 }

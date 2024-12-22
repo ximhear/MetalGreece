@@ -18,6 +18,7 @@ struct SceneUniforms {
 
 struct ModelUniforms {
     var modelMatrix: float4x4
+    var normalMatrix: float3x3
 }
 
 class Renderer {
@@ -35,7 +36,8 @@ class Renderer {
         lightPos: [0,3,0] // 빛을 삼각형 위에 배치
     )
     var modelUniforms = ModelUniforms(
-        modelMatrix: float4x4(translation: [0,0,0])
+        modelMatrix: float4x4(translation: [0,0,0]),
+        normalMatrix: float3x3(1)
     )
 
     var sceneUniformBuffer: MTLBuffer!
@@ -43,13 +45,15 @@ class Renderer {
     var rotation: Float = 0
     
     var model = Model()
+    let flatBottom: FlatBottom
+    let lowerFlatBottom: FlatBottom
 
 
     var vertexBuffer: MTLBuffer!
     var indexBuffer: MTLBuffer!
     var faceBuffer: MTLBuffer!
     let depthWidth: Int = 1024 * 2
-
+    
     init?(mtkView: MTKView) {
         guard let dev = mtkView.device else { return nil }
         device = dev
@@ -67,12 +71,17 @@ class Renderer {
         faceBuffer = device.makeBuffer(bytes: model.faces,
                                        length: model.faces.count * MemoryLayout<Face>.size,
                                         options: [])
+        
 
         GZLogFunc(MemoryLayout<SceneUniforms>.size)
         GZLogFunc(MemoryLayout<SceneUniforms>.stride)
         GZLogFunc(MemoryLayout<float4x4>.stride)
         GZLogFunc(MemoryLayout<Vertex>.stride)
         GZLogFunc()
+        
+        flatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -60, maxX: 60, y: -2.5, minZ: -60, maxZ: 60), color: [0, 1, 0])
+//        flatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -30, maxX: 30, y: 30.5, minZ: -30, maxZ: 30), color: [0, 1, 0])
+        lowerFlatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -200, maxX: 200, y: -25.5, minZ: -200, maxZ: 200), color: [1, 0, 0])
         
         sceneUniformBuffer = device.makeBuffer(length: MemoryLayout<SceneUniforms>.size, options: [])
         modelUniformBuffer = device.makeBuffer(length: MemoryLayout<ModelUniforms>.size, options: [])
@@ -150,10 +159,7 @@ class Renderer {
         sceneUniforms.cameraProjMatrix = perspectiveMatrixLH(aspect: aspect, fovY: Float.pi / 6, nearZ: 0.1, farZ: 1000)
 
         // LH Orthographic for light (빛의 관점)
-        sceneUniforms.lightViewProjMatrix =
-//        perspectiveMatrixLH(aspect: aspect, fovY: Float.pi / 6, nearZ: 0.1, farZ: 1000) *
-        orthographicMatrixLH(left: -5, right: 5, bottom: -5, top: 5, near: -20, far: 20) *
-        float4x4(translation: [0, 0, 8]) * rotateX(-Float.pi / 2) // 빛을 삼각형 위에 배치
+        sceneUniforms.lightViewProjMatrix = orthographicMatrixLH(left: -100, right: 100, bottom: -100, top: 100, near: -1100, far: 1500) * float4x4(translation: [0, 0, 120]) * rotateX(-Float.pi / 2) // 빛을 삼각형 위에 배치
     }
 
     func resize(size: CGSize) {
@@ -168,7 +174,10 @@ class Renderer {
               let drawable = view.currentDrawable,
               let rpd = view.currentRenderPassDescriptor else { return }
         
-        sceneUniforms.cameraViewProjMatrix = sceneUniforms.cameraProjMatrix * float4x4(translation: [0, -50, 330]) * rotateY(rotation)
+        modelUniforms.modelMatrix = rotateY(rotation)
+        modelUniforms.normalMatrix = calculateNormalMatrix(from: modelUniforms.modelMatrix)
+        sceneUniforms.cameraViewProjMatrix = sceneUniforms.cameraProjMatrix * float4x4(translation: [0, -50, 330])
+//        sceneUniforms.cameraViewProjMatrix = orthographicMatrixLH(left: -100, right: 100, bottom: -100, top: 100, near: -1100, far: 1500) * float4x4(translation: [0, 0, 120]) * rotateX(-Float.pi / 2)
 
         memcpy(sceneUniformBuffer.contents(), &sceneUniforms, MemoryLayout<SceneUniforms>.size)
         memcpy(modelUniformBuffer.contents(), &modelUniforms, MemoryLayout<ModelUniforms>.size)
@@ -185,12 +194,28 @@ class Renderer {
             shadowEncoder.setDepthStencilState(depthStencilState)
             shadowEncoder.setVertexBuffer(sceneUniformBuffer, offset: 0, index: 0)
             shadowEncoder.setVertexBuffer(modelUniformBuffer, offset: 0, index: 1)
+            
             shadowEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 2)
             shadowEncoder.drawIndexedPrimitives(type: .triangle,
                                                 indexCount: model.indices.count,
                                                 indexType: .uint16,
                                                 indexBuffer: indexBuffer,
                                                 indexBufferOffset: 0)
+            
+            shadowEncoder.setVertexBuffer(flatBottom.vertexBuffer, offset: 0, index: 2)
+            shadowEncoder.drawIndexedPrimitives(type: .triangle,
+                                                indexCount: flatBottom.indices.count,
+                                                indexType: .uint16,
+                                                indexBuffer: flatBottom.faceBuffer,
+                                                indexBufferOffset: 0)
+            
+            shadowEncoder.setVertexBuffer(lowerFlatBottom.vertexBuffer, offset: 0, index: 2)
+            shadowEncoder.drawIndexedPrimitives(type: .triangle,
+                                                indexCount: lowerFlatBottom.indices.count,
+                                                indexType: .uint16,
+                                                indexBuffer: lowerFlatBottom.faceBuffer,
+                                                indexBufferOffset: 0)
+            
             shadowEncoder.endEncoding()
         }
 
@@ -200,10 +225,8 @@ class Renderer {
             mainEncoder.setDepthStencilState(depthStencilState)
             mainEncoder.setVertexBuffer(sceneUniformBuffer, offset: 0, index: 0)
             mainEncoder.setVertexBuffer(modelUniformBuffer, offset: 0, index: 1)
-            mainEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 2)
             mainEncoder.setFragmentBuffer(sceneUniformBuffer, offset: 0, index: 0)
             mainEncoder.setFragmentBuffer(modelUniformBuffer, offset: 0, index: 1)
-            mainEncoder.setFragmentBuffer(faceBuffer, offset: 0, index: 2)
             mainEncoder.setFrontFacing(.counterClockwise)
             mainEncoder.setCullMode(.back)
 
@@ -216,15 +239,51 @@ class Renderer {
             mainEncoder.setFragmentTexture(shadowDepthTexture, index: 0)
             mainEncoder.setFragmentSamplerState(shadowSampler, index: 0)
 
+            mainEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 2)
+            mainEncoder.setFragmentBuffer(faceBuffer, offset: 0, index: 2)
             mainEncoder.drawIndexedPrimitives(type: .triangle,
                                               indexCount: model.indices.count,
                                               indexType: .uint16,
                                               indexBuffer: indexBuffer,
                                               indexBufferOffset: 0)
+            
+            mainEncoder.setVertexBuffer(flatBottom.vertexBuffer, offset: 0, index: 2)
+            mainEncoder.setFragmentBuffer(flatBottom.faceBuffer, offset: 0, index: 2)
+            mainEncoder.drawIndexedPrimitives(type: .triangle,
+                                              indexCount: flatBottom.indices.count,
+                                              indexType: .uint16,
+                                              indexBuffer: flatBottom.indexBuffer,
+                                              indexBufferOffset: 0)
+            
+            mainEncoder.setVertexBuffer(lowerFlatBottom.vertexBuffer, offset: 0, index: 2)
+            mainEncoder.setFragmentBuffer(lowerFlatBottom.faceBuffer, offset: 0, index: 2)
+            mainEncoder.drawIndexedPrimitives(type: .triangle,
+                                              indexCount: lowerFlatBottom.indices.count,
+                                              indexType: .uint16,
+                                              indexBuffer: lowerFlatBottom.indexBuffer,
+                                              indexBufferOffset: 0)
+
             mainEncoder.endEncoding()
         }
 
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+    
+    func calculateNormalMatrix(from modelMatrix: simd_float4x4) -> simd_float3x3 {
+        // 4x4 모델 행렬의 상위 3x3 부분 추출
+        let upperLeft3x3 = simd_float3x3(
+            simd_float3(modelMatrix.columns.0.x, modelMatrix.columns.0.y, modelMatrix.columns.0.z),
+            simd_float3(modelMatrix.columns.1.x, modelMatrix.columns.1.y, modelMatrix.columns.1.z),
+            simd_float3(modelMatrix.columns.2.x, modelMatrix.columns.2.y, modelMatrix.columns.2.z)
+        )
+        
+        // 역행렬 계산
+        let inverse3x3 = upperLeft3x3.inverse
+        
+        // 역행렬의 전치 행렬 계산
+        let normalMatrix = inverse3x3.transpose
+        
+        return normalMatrix
     }
 }
