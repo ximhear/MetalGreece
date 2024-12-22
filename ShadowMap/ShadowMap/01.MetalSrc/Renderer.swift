@@ -62,6 +62,21 @@ class Renderer {
 
         model.loadFromJson()
         
+        flatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -60, maxX: 60, y: -2.5, minZ: -60, maxZ: 60), color: [0, 1, 0])
+//        flatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -30, maxX: 30, y: 30.5, minZ: -30, maxZ: 30), color: [0, 1, 0])
+        lowerFlatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -200, maxX: 200, y: -25.5, minZ: -200, maxZ: 200), color: [1, 0, 0])
+        
+        model.indices.append(contentsOf: flatBottom.indices.map { $0 + UInt16(model.vertices.count) })
+        model.indices.append(contentsOf: lowerFlatBottom.indices.map { $0 + UInt16(model.vertices.count) + UInt16(flatBottom.vertices.count) })
+        
+        model.vertices.append(contentsOf: flatBottom.vertices)
+        model.vertices.append(contentsOf: lowerFlatBottom.vertices)
+        
+        model.faces.append(contentsOf: flatBottom.faces)
+        model.faces.append(contentsOf: lowerFlatBottom.faces)
+        
+
+        
         vertexBuffer = device.makeBuffer(bytes: model.vertices,
                                          length: model.vertices.count * MemoryLayout<Vertex>.stride,
                                          options: [])
@@ -78,10 +93,6 @@ class Renderer {
         GZLogFunc(MemoryLayout<float4x4>.stride)
         GZLogFunc(MemoryLayout<Vertex>.stride)
         GZLogFunc()
-        
-        flatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -60, maxX: 60, y: -2.5, minZ: -60, maxZ: 60), color: [0, 1, 0])
-//        flatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -30, maxX: 30, y: 30.5, minZ: -30, maxZ: 30), color: [0, 1, 0])
-        lowerFlatBottom = FlatBottom(device: device, range: Flat3DRange(minX: -200, maxX: 200, y: -25.5, minZ: -200, maxZ: 200), color: [1, 0, 0])
         
         sceneUniformBuffer = device.makeBuffer(length: MemoryLayout<SceneUniforms>.size, options: [])
         modelUniformBuffer = device.makeBuffer(length: MemoryLayout<ModelUniforms>.size, options: [])
@@ -159,7 +170,7 @@ class Renderer {
         sceneUniforms.cameraProjMatrix = perspectiveMatrixLH(aspect: aspect, fovY: Float.pi / 6, nearZ: 0.1, farZ: 1000)
 
         // LH Orthographic for light (빛의 관점)
-        sceneUniforms.lightViewProjMatrix = orthographicMatrixLH(left: -100, right: 100, bottom: -100, top: 100, near: -1100, far: 1500) * float4x4(translation: [0, 0, 120]) * rotateX(-Float.pi / 2) // 빛을 삼각형 위에 배치
+        sceneUniforms.lightViewProjMatrix = orthographicMatrixLH(left: -300, right: 300, bottom: -300, top: 300, near: -10, far: 200) * float4x4(translation: [0, 0, 100]) * rotateX(-Float.pi / 2) // 빛을 삼각형 위에 배치
     }
 
     func resize(size: CGSize) {
@@ -202,19 +213,19 @@ class Renderer {
                                                 indexBuffer: indexBuffer,
                                                 indexBufferOffset: 0)
             
-            shadowEncoder.setVertexBuffer(flatBottom.vertexBuffer, offset: 0, index: 2)
-            shadowEncoder.drawIndexedPrimitives(type: .triangle,
-                                                indexCount: flatBottom.indices.count,
-                                                indexType: .uint16,
-                                                indexBuffer: flatBottom.faceBuffer,
-                                                indexBufferOffset: 0)
-            
-            shadowEncoder.setVertexBuffer(lowerFlatBottom.vertexBuffer, offset: 0, index: 2)
-            shadowEncoder.drawIndexedPrimitives(type: .triangle,
-                                                indexCount: lowerFlatBottom.indices.count,
-                                                indexType: .uint16,
-                                                indexBuffer: lowerFlatBottom.faceBuffer,
-                                                indexBufferOffset: 0)
+//            shadowEncoder.setVertexBuffer(flatBottom.vertexBuffer, offset: 0, index: 2)
+//            shadowEncoder.drawIndexedPrimitives(type: .triangle,
+//                                                indexCount: flatBottom.indices.count,
+//                                                indexType: .uint16,
+//                                                indexBuffer: flatBottom.faceBuffer,
+//                                                indexBufferOffset: 0)
+//            
+//            shadowEncoder.setVertexBuffer(lowerFlatBottom.vertexBuffer, offset: 0, index: 2)
+//            shadowEncoder.drawIndexedPrimitives(type: .triangle,
+//                                                indexCount: lowerFlatBottom.indices.count,
+//                                                indexType: .uint16,
+//                                                indexBuffer: lowerFlatBottom.faceBuffer,
+//                                                indexBufferOffset: 0)
             
             shadowEncoder.endEncoding()
         }
@@ -247,21 +258,21 @@ class Renderer {
                                               indexBuffer: indexBuffer,
                                               indexBufferOffset: 0)
             
-            mainEncoder.setVertexBuffer(flatBottom.vertexBuffer, offset: 0, index: 2)
-            mainEncoder.setFragmentBuffer(flatBottom.faceBuffer, offset: 0, index: 2)
-            mainEncoder.drawIndexedPrimitives(type: .triangle,
-                                              indexCount: flatBottom.indices.count,
-                                              indexType: .uint16,
-                                              indexBuffer: flatBottom.indexBuffer,
-                                              indexBufferOffset: 0)
-            
-            mainEncoder.setVertexBuffer(lowerFlatBottom.vertexBuffer, offset: 0, index: 2)
-            mainEncoder.setFragmentBuffer(lowerFlatBottom.faceBuffer, offset: 0, index: 2)
-            mainEncoder.drawIndexedPrimitives(type: .triangle,
-                                              indexCount: lowerFlatBottom.indices.count,
-                                              indexType: .uint16,
-                                              indexBuffer: lowerFlatBottom.indexBuffer,
-                                              indexBufferOffset: 0)
+//            mainEncoder.setVertexBuffer(flatBottom.vertexBuffer, offset: 0, index: 2)
+//            mainEncoder.setFragmentBuffer(flatBottom.faceBuffer, offset: 0, index: 2)
+//            mainEncoder.drawIndexedPrimitives(type: .triangle,
+//                                              indexCount: flatBottom.indices.count,
+//                                              indexType: .uint16,
+//                                              indexBuffer: flatBottom.indexBuffer,
+//                                              indexBufferOffset: 0)
+//            
+//            mainEncoder.setVertexBuffer(lowerFlatBottom.vertexBuffer, offset: 0, index: 2)
+//            mainEncoder.setFragmentBuffer(lowerFlatBottom.faceBuffer, offset: 0, index: 2)
+//            mainEncoder.drawIndexedPrimitives(type: .triangle,
+//                                              indexCount: lowerFlatBottom.indices.count,
+//                                              indexType: .uint16,
+//                                              indexBuffer: lowerFlatBottom.indexBuffer,
+//                                              indexBufferOffset: 0)
 
             mainEncoder.endEncoding()
         }

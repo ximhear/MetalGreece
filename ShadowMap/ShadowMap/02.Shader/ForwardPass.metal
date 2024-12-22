@@ -72,16 +72,16 @@ fragment float4 main_fragment(VertexOut in [[stage_in]],
     // shadowMap.sample_compare: 1.0 -> lit, 0.0 -> in shadow
     float3 color = faces[primID].color;
     
-//    float shadow = shadowMap.sample(shadowSampler, in.shadowCoord.xy);
-//    if (shadow < in.shadowCoord.z) {
-//        shadow = 0.0;
-//    } else {
-//        shadow = 1.0;
-//    }
-//    float visibility = (shadow > 0.5) ? 1.0 : 0.6;
+    float shadow = shadowMap.sample(shadowSampler, in.shadowCoord.xy);
+    if (shadow + 0.0001 < in.shadowCoord.z) {
+        shadow = 0.0;
+    } else {
+        shadow = 1.0;
+    }
+    float visibility = (shadow > 0.5) ? 1.0 : 0.6;
     
-    float shadow = shadowMap.sample_compare(shadowSampler, in.shadowCoord.xy, in.shadowCoord.z);
-    float visibility = mix(0.6, 1.0, shadow); // 부드러운 그림자
+//    float shadow = shadowMap.sample_compare(shadowSampler, in.shadowCoord.xy, in.shadowCoord.z);
+//    float visibility = mix(0.6, 1.0, shadow); // 부드러운 그림자
     
     float3 baseColor = color * visibility; // 기본 색상 * 가시성
     float3 shadowColor = float3(0.0, 0.0, 0.0) * (1.0 - visibility); // 그림자 색상
