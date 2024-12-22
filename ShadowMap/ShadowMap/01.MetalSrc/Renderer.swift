@@ -41,32 +41,13 @@ class Renderer {
     var sceneUniformBuffer: MTLBuffer!
     var modelUniformBuffer: MTLBuffer!
     var rotation: Float = 0
+    
+    var model = Model()
 
-    // 삼각형과 평면 정점 데이터 (position + normal)
-    let vertices: [Float] = [
-        // 삼각형
-        // pos          normal   color
-        0, 0.5, -1,       0, 1, 0,  1, 0, 0,
-        1, 0.5, 1,       0, 1, 0,  1, 0, 0,
-        -1, 0.5, 1,       0, 1, 0,  1, 0, 0,
 
-        // 평면 (사각형)
-        // pos          normal        color
-        -2, -0.5, -2,     0, 1, 0,    0, 1, 0,
-        2, -0.5, -2,      0, 1, 0,    0, 1, 0,
-        -2, -0.5, 2,      0, 1, 0,    0, 1, 0,
-        2, -0.5, 2,       0, 1, 0,    0, 1, 0,
-    ]
-    let indices: [UInt16] = [
-        // 삼각형
-        0, 1, 2,
-
-        // 평면 (두 개의 삼각형)
-        3, 4, 5,
-        5, 4, 6
-    ]
     var vertexBuffer: MTLBuffer!
     var indexBuffer: MTLBuffer!
+    var faceBuffer: MTLBuffer!
     let depthWidth: Int = 1024 * 2
 
     init?(mtkView: MTKView) {
@@ -75,16 +56,22 @@ class Renderer {
         guard let cq = device.makeCommandQueue() else { return nil }
         commandQueue = cq
 
-        vertexBuffer = device.makeBuffer(bytes: vertices,
-                                         length: vertices.count * MemoryLayout<Float>.size,
+        model.loadFromJson()
+        
+        vertexBuffer = device.makeBuffer(bytes: model.vertices,
+                                         length: model.vertices.count * MemoryLayout<Vertex>.stride,
                                          options: [])
-        indexBuffer = device.makeBuffer(bytes: indices,
-                                        length: indices.count * MemoryLayout<UInt16>.size,
+        indexBuffer = device.makeBuffer(bytes: model.indices,
+                                        length: model.indices.count * MemoryLayout<UInt16>.size,
+                                        options: [])
+        faceBuffer = device.makeBuffer(bytes: model.faces,
+                                       length: model.faces.count * MemoryLayout<Face>.size,
                                         options: [])
 
         GZLogFunc(MemoryLayout<SceneUniforms>.size)
         GZLogFunc(MemoryLayout<SceneUniforms>.stride)
         GZLogFunc(MemoryLayout<float4x4>.stride)
+        GZLogFunc(MemoryLayout<Vertex>.stride)
         GZLogFunc()
         
         sceneUniformBuffer = device.makeBuffer(length: MemoryLayout<SceneUniforms>.size, options: [])
@@ -117,14 +104,15 @@ class Renderer {
         vertexDescriptor.attributes[0].offset = 0
         vertexDescriptor.attributes[0].bufferIndex = 2
         // normal
-        vertexDescriptor.attributes[1].format = .float3
-        vertexDescriptor.attributes[1].offset = MemoryLayout<Float>.size * 3
-        vertexDescriptor.attributes[1].bufferIndex = 2
+//        vertexDescriptor.attributes[1].format = .float3
+//        vertexDescriptor.attributes[1].offset = MemoryLayout<Float>.size * 3
+//        vertexDescriptor.attributes[1].bufferIndex = 2
         // color
-        vertexDescriptor.attributes[2].format = .float3
-        vertexDescriptor.attributes[2].offset = MemoryLayout<Float>.size * 6
-        vertexDescriptor.attributes[2].bufferIndex = 2
-        vertexDescriptor.layouts[2].stride = MemoryLayout<Float>.size * 9
+        vertexDescriptor.attributes[1].format = .float3
+        vertexDescriptor.attributes[1].offset = 16
+        vertexDescriptor.attributes[1].bufferIndex = 2
+        vertexDescriptor.layouts[2].stride = MemoryLayout<Vertex>.stride
+        vertexDescriptor.layouts[2].stepFunction = .perVertex
 
         // Shadow Pipeline (depth-only)
         let shadowPSODesc = MTLRenderPipelineDescriptor()
@@ -174,12 +162,13 @@ class Renderer {
 
     func draw(in view: MTKView) {
         rotation += 0.01
+//        rotation = Float.pi / 2.0
         
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
               let drawable = view.currentDrawable,
               let rpd = view.currentRenderPassDescriptor else { return }
         
-        sceneUniforms.cameraViewProjMatrix = sceneUniforms.cameraProjMatrix * float4x4(translation: [0, 0, 18]) * rotateX(-Float.pi / 10) * rotateY(rotation)
+        sceneUniforms.cameraViewProjMatrix = sceneUniforms.cameraProjMatrix * float4x4(translation: [0, -50, 330]) * rotateY(rotation)
 
         memcpy(sceneUniformBuffer.contents(), &sceneUniforms, MemoryLayout<SceneUniforms>.size)
         memcpy(modelUniformBuffer.contents(), &modelUniforms, MemoryLayout<ModelUniforms>.size)
@@ -198,7 +187,7 @@ class Renderer {
             shadowEncoder.setVertexBuffer(modelUniformBuffer, offset: 0, index: 1)
             shadowEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 2)
             shadowEncoder.drawIndexedPrimitives(type: .triangle,
-                                                indexCount: indices.count,
+                                                indexCount: model.indices.count,
                                                 indexType: .uint16,
                                                 indexBuffer: indexBuffer,
                                                 indexBufferOffset: 0)
@@ -212,7 +201,11 @@ class Renderer {
             mainEncoder.setVertexBuffer(sceneUniformBuffer, offset: 0, index: 0)
             mainEncoder.setVertexBuffer(modelUniformBuffer, offset: 0, index: 1)
             mainEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 2)
-            mainEncoder.setFragmentBuffer(sceneUniformBuffer, offset: 0, index: 2)
+            mainEncoder.setFragmentBuffer(sceneUniformBuffer, offset: 0, index: 0)
+            mainEncoder.setFragmentBuffer(modelUniformBuffer, offset: 0, index: 1)
+            mainEncoder.setFragmentBuffer(faceBuffer, offset: 0, index: 2)
+            mainEncoder.setFrontFacing(.counterClockwise)
+            mainEncoder.setCullMode(.back)
 
             let samplerDesc = MTLSamplerDescriptor()
             samplerDesc.minFilter = .linear
@@ -224,7 +217,7 @@ class Renderer {
             mainEncoder.setFragmentSamplerState(shadowSampler, index: 0)
 
             mainEncoder.drawIndexedPrimitives(type: .triangle,
-                                              indexCount: indices.count,
+                                              indexCount: model.indices.count,
                                               indexType: .uint16,
                                               indexBuffer: indexBuffer,
                                               indexBufferOffset: 0)

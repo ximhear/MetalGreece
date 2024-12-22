@@ -3,8 +3,13 @@ using namespace metal;
 
 struct VertexIn {
     float3 position [[attribute(0)]];
-    float3 normal   [[attribute(1)]];
-    float3 color    [[attribute(2)]];
+//    float3 normal   [[attribute(1)]];
+    float3 color    [[attribute(1)]];
+};
+
+struct Face {
+    float3 normal;
+    float3 color;
 };
 
 struct SceneUniforms {
@@ -33,21 +38,27 @@ vertex VertexOut main_vertex(VertexIn in [[stage_in]],
     VertexOut out;
     float4 worldPos = model.modelMatrix * float4(in.position, 1.0);
     out.worldPos = worldPos.xyz;
-    out.normal = normalize((model.modelMatrix * float4(in.normal,0.0)).xyz);
+//    out.normal = normalize((model.modelMatrix * float4(in.normal,0.0)).xyz);
 
     out.position = scene.cameraViewProjMatrix * worldPos;
+    out.color = in.color;
 
     float4 lightPos = scene.lightViewProjMatrix * worldPos;
     out.shadowCoord = (lightPos.xyz / lightPos.w) * float3(0.5, 0.5, 1) * float3(1, -1, 1) + float3(0.5, 0.5, 0.0);
-    out.color = in.color;
+//    out.color = in.color;
     return out;
 }
 
 fragment float4 main_fragment(VertexOut in [[stage_in]],
                               depth2d<float> shadowMap [[texture(0)]],
                               sampler shadowSampler [[sampler(0)]],
-                              constant SceneUniforms &scene [[buffer(2)]])
+                              constant SceneUniforms &scene [[buffer(0)]],
+                              constant ModelUniforms &model [[buffer(1)]],
+                              constant Face *faces [[buffer(2)]],
+                              uint primID [[primitive_id]])
 {
+    return float4(faces[primID].color, 1);
+    return float4(in.color, 1);
     // shadowMap.sample_compare: 1.0 -> lit, 0.0 -> in shadow
     float shadow = shadowMap.sample(shadowSampler, in.shadowCoord.xy);
 //    float shadow = shadowMap.sample_compare(shadowSampler, in.shadowCoord.xy, in.shadowCoord.z);
