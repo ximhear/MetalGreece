@@ -11,18 +11,19 @@ struct FileListView: View {
     
     @State var selectedFile: String?
     @State var model: Model?
+    @State var isLoading: Bool = false
     
     var vm = FileListViewModel()
     var body: some View {
         NavigationStack {
-            VStack {
+            ZStack {
                 List {
                     ForEach(vm.files, id: \.self) { file in
                         HStack {
                             Text(file)
                             Spacer()
                         }
-                        .padding(.vertical, 8)
+                        .padding(8)
                         .contentShape(Rectangle())
                         .overlay {
                             RoundedRectangle(cornerRadius: 10)
@@ -30,15 +31,13 @@ struct FileListView: View {
                         }
                         .onTapGesture {
                             GZLogFunc()
-                            
+
+                            selectedFile = file
+                            isLoading = true
                             Task {
-                                GZLogFunc(Thread.isMainThread)
-                                GZLogFunc()
-                                model = PlyParser().loadLarge(from: file)
+                                model = await PlyParser().loadLarge(from: file)
                                 await MainActor.run {
-                                    GZLogFunc(Thread.isMainThread)
-                                    GZLogFunc()
-                                    selectedFile = file
+                                    isLoading = false
                                 }
                             }
                         }
@@ -46,12 +45,33 @@ struct FileListView: View {
                 }
                 .listStyle(.plain)
                 .listRowSpacing(1)
+                if isLoading {
+                    ZStack {
+                        Color.black.opacity(0.5)
+                        
+                        ZStack {
+                            ProgressView()
+                                .scaleEffect(1.5, anchor: .center)
+                                .tint(.white)
+                        }
+                        .padding(40)
+                        .background(Color.init(uiColor: .init(red: 0.5, green: 0.5, blue: 1.0, alpha: 1.0)))
+                        .cornerRadius(8)
+                    }
+                }
             }
             .onAppear {
                 vm.loadFiles()
             }
-            .navigationDestination(item: $selectedFile) { fileName in
-                MetalView(model: model!)
+            .onChange(of: model) { oldValue, newValue in
+                GZLogFunc(newValue)
+                if newValue == nil {
+                    selectedFile = nil
+                }
+                
+            }
+            .navigationDestination(item: $model) { value in
+                MetalView(model: value)
                     .edgesIgnoringSafeArea(.all)
                 
             }

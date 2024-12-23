@@ -50,8 +50,9 @@ struct Face {
  */
 
 
-class Model {
+class Model: Hashable {
     
+    var fileName: String = ""
     var vertices: [Vertex] = []
     var indices: [UInt32] = []
     var faces: [Face] = []
@@ -147,6 +148,14 @@ class Model {
             GZLogFunc("No vertex")
         }
 
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(fileName)
+    }
+    
+    static func == (lhs: Model, rhs: Model) -> Bool {
+        return lhs.fileName == rhs.fileName
     }
 }
 

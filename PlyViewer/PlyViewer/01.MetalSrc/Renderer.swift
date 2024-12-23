@@ -168,6 +168,10 @@ class Renderer {
             return nil
         }
     }
+    
+    deinit {
+        GZLogFunc()
+    }
 
     func setupMatrices(viewSize: CGSize) {
         let aspect = Float(viewSize.width/viewSize.height)
