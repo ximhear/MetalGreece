@@ -21,7 +21,7 @@ struct ModelUniforms {
     var normalMatrix: float3x3
 }
 
-class Renderer {
+@MainActor class Renderer {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
     var mainRenderPipeline: MTLRenderPipelineState!

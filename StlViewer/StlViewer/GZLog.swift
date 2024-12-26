@@ -8,13 +8,13 @@ let GZLOG_FLAG = false
 
 private class GZLogUtil {
 
-    static var formatter: DateFormatter = {
+    static let formatter: DateFormatter = {
         let format = DateFormatter()
         format.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
         return format
     }()
     
-    class func notNilObj(_ obj: Any?) -> Any {
+    static func notNilObj(_ obj: Any?) -> Any {
         if let a: Any = obj {
             return a
         }

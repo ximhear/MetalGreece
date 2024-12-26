@@ -8,7 +8,7 @@
 import Foundation
 import simd
 
-class STLParser {
+actor STLParser {
     enum STLFormat {
         case ascii
         case binary
@@ -43,7 +43,7 @@ class STLParser {
     }
 
     /// STL 파일 포맷을 감지합니다.
-    static func detectFormat(data: Data) -> STLFormat {
+    func detectFormat(data: Data) -> STLFormat {
         if data.count >= 5, let prefix = String(data: data.subdata(in: 0..<5), encoding: .utf8), prefix.lowercased() == "solid" {
             return .ascii
         }
@@ -51,7 +51,7 @@ class STLParser {
     }
 
     /// ASCII STL 파일을 파싱합니다.
-    static func parseASCII(data: Data) throws -> STLResult {
+    func parseASCII(data: Data) throws -> STLResult {
         var vertices: [SIMD3<Float>] = []
         var normals: [SIMD3<Float>] = []
         let normalRegex = try NSRegularExpression(pattern: #"facet normal\s+([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)"#)
@@ -127,7 +127,7 @@ class STLParser {
     }
 
     /// 바이너리 STL 파일을 파싱합니다.
-    static func parseBinary(data: Data) throws -> STLResult {
+    func parseBinary(data: Data) throws -> STLResult {
         var vertices: [SIMD3<Float>] = []
         var normals: [SIMD3<Float>] = []
         
@@ -172,34 +172,33 @@ class STLParser {
         return STLResult(vertices: vertices, normals: normals)
     }
 
-    func load(from stlName: String) async throws -> Model {
-        let model = Model()
+    func load(from stlName: String) async throws -> Model? {
         guard let stlURL = Bundle.main.url(forResource: stlName, withExtension: "stl") else {
             GZLogFunc("Failed to get URL for \(stlName).stl")
-            return model
+            return nil
         }
         
         let colorUtil = ColorUtil()
         let result = try await parse(from: stlURL)
       
-        model.vertices = []
-        model.faces = []
-        model.indices = []
+        var vertices: [Vertex] = []
+        var faces: [Face] = []
         for index in 0..<Int(result.vertices.count / 3) {
-            var v0 = result.vertices[index * 3 + 0]
-            var v1 = result.vertices[index * 3 + 2]
-            var v2 = result.vertices[index * 3 + 1]
-            model.vertices.append(Vertex(position: v0, color: colorUtil.getColor(index: index * 3)))
-            model.vertices.append(Vertex(position: v1, color: colorUtil.getColor(index: index * 3 + 1)))
-            model.vertices.append(Vertex(position: v2, color: colorUtil.getColor(index: index * 3 + 2)))
+            let v0 = result.vertices[index * 3 + 0]
+            let v1 = result.vertices[index * 3 + 2]
+            let v2 = result.vertices[index * 3 + 1]
+            vertices.append(Vertex(position: v0, color: colorUtil.getColor(index: index * 3)))
+            vertices.append(Vertex(position: v1, color: colorUtil.getColor(index: index * 3 + 1)))
+            vertices.append(Vertex(position: v2, color: colorUtil.getColor(index: index * 3 + 2)))
             
             let vec0 = v1 - v0
             let vec1 = v2 - v0
             
             let normal: SIMD3<Float> = simd_normalize(simd_cross(vec0, vec1))
-            model.faces.append(Face(normal: normal, color: colorUtil.getColor(index: index)))
+            faces.append(Face(normal: normal, color: colorUtil.getColor(index: index)))
         }
-        model.indices = model.vertices.enumerated().map { index, _ in UInt32(index) }
+        let indices = vertices.enumerated().map { index, _ in UInt32(index) }
+        let model = Model(fileName: stlName, vertices: vertices, indices: indices, faces: faces)
         GZLogFunc(model.vertices.count)
         GZLogFunc(model.indices.count)
         GZLogFunc(model.faces.count)
@@ -209,26 +208,18 @@ class STLParser {
     
     /// STL 파일을 로드합니다.
     func parse(from stlURL: URL) async throws -> STLResult {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    guard let data = try? Data(contentsOf: stlURL) else {
-                        throw STLParserError.fileNotFound
-                    }
-                    let format = STLParser.detectFormat(data: data)
-                    
-                    let result: STLResult
-                    if format == .ascii {
-                        result = try STLParser.parseASCII(data: data)
-                    }
-                    else {
-                        result = try STLParser.parseBinary(data: data)
-                    }
-                    continuation.resume(returning: result)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
+        guard let data = try? Data(contentsOf: stlURL) else {
+            throw STLParserError.fileNotFound
         }
+        let format = self.detectFormat(data: data)
+        
+        let result: STLResult
+        if format == .ascii {
+            result = try self.parseASCII(data: data)
+        }
+        else {
+            result = try self.parseBinary(data: data)
+        }
+        return result
     }
 }

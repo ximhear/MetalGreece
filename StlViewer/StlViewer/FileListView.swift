@@ -16,52 +16,57 @@ struct FileListView: View {
     var vm = FileListViewModel()
     var body: some View {
         NavigationStack {
-            ZStack {
-                List {
-                    ForEach(vm.files, id: \.self) { file in
-                        HStack {
-                            Text(file)
-                            Spacer()
-                        }
-                        .padding(8)
-                        .contentShape(Rectangle())
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(selectedFile == file ? Color.blue : Color.clear, lineWidth: 2)
-                        }
-                        .onTapGesture {
-                            GZLogFunc()
-
-                            selectedFile = file
-                            isLoading = true
-                            Task {
-                                do {
-                                    model = try await STLParser().load(from: file)
-                                }
-                                catch {
-                                    GZLogFunc(error)
-                                }
-                                await MainActor.run {
+            VStack {
+                Text("\(isLoading ? "true" : "false")")
+                ZStack {
+                    List {
+                        ForEach(vm.files, id: \.self) { file in
+                            HStack {
+                                Text(file)
+                                Spacer()
+                            }
+                            .padding(8)
+                            .contentShape(Rectangle())
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(selectedFile == file ? Color.blue : Color.clear, lineWidth: 2)
+                            }
+                            .onTapGesture {
+                                GZLogFunc()
+                                
+                                selectedFile = file
+                                isLoading = true
+                                Task { @MainActor in
+                                    do {
+                                        model = try await STLParser().load(from: file)
+                                        GZLogFunc(model?.fileName)
+                                        GZLogFunc()
+                                    }
+                                    catch {
+                                        GZLogFunc(error)
+                                    }
                                     isLoading = false
+                                    GZLogFunc(Thread.isMainThread)
+                                    GZLogFunc()
                                 }
                             }
                         }
                     }
-                }
-                .listStyle(.plain)
-                .listRowSpacing(1)
-                if isLoading {
-                    ZStack {
-                        Color.black.opacity(0.5)
-                        
+                    .listStyle(.plain)
+                    .listRowSpacing(1)
+                    if isLoading {
                         ZStack {
-                            ProgressView()
-                                .scaleEffect(1.5, anchor: .center)
-                                .tint(.white)
+                            Color.black.opacity(0.5)
+                            
+                            ZStack {
+                                ProgressView()
+                                    .scaleEffect(1.5, anchor: .center)
+                                    .tint(.white)
+                            }
+                            .padding(40)
+                            .background(Color.init(uiColor: .init(red: 0.5, green: 0.5, blue: 1.0, alpha: 1.0)))
+                            .cornerRadius(8)
                         }
-                        .padding(40)
-                        .background(Color.init(uiColor: .init(red: 0.5, green: 0.5, blue: 1.0, alpha: 1.0)))
-                        .cornerRadius(8)
                     }
                 }
             }
@@ -73,12 +78,11 @@ struct FileListView: View {
                 if newValue == nil {
                     selectedFile = nil
                 }
-                
             }
             .navigationDestination(item: $model) { value in
                 MetalWrapperView(model: value)
                     .edgesIgnoringSafeArea([.top, .leading, .trailing])
-                
+
             }
         }
     }

@@ -50,77 +50,12 @@ struct Face {
  */
 
 
-class Model: Hashable {
+struct Model: Sendable, Hashable {
     
-    var fileName: String = ""
-    var vertices: [Vertex] = []
-    var indices: [UInt32] = []
-    var faces: [Face] = []
-    
-    func loadFromJson() {
-        // Load model from json
-        // stanfordDragonData.json
-        // { triangles: [[UInt32, UInt32, UInt32]], vertices: [[Float, Float, Float]] }
-        do {
-            let jsonURL = Bundle.main.url(forResource: "stanfordDragonData", withExtension: "json")!
-            GZLogFunc(jsonURL)
-            let jsonData = try Data(contentsOf: jsonURL)
-            let meshData = try JSONDecoder().decode(MeshData.self, from: jsonData)
-            GZLogFunc(meshData.triangles.first)
-            GZLogFunc(meshData.triangles.last)
-            GZLogFunc(meshData.vertices.first)
-            GZLogFunc(meshData.vertices.last)
-            GZLogFunc(meshData.triangles.count)
-            GZLogFunc(meshData.vertices.count)
-            GZLogFunc()
-            
-            let colors: [SIMD3<Float>] = [
-                SIMD3<Float>(1.0, 0.0, 0.0), // Red
-                SIMD3<Float>(0.0, 1.0, 0.0), // Green
-                SIMD3<Float>(0.0, 0.0, 1.0), // Blue
-                SIMD3<Float>(1.0, 1.0, 0.0), // Yellow
-                SIMD3<Float>(1.0, 0.0, 1.0), // Magenta
-                SIMD3<Float>(0.0, 1.0, 1.0), // Cyan
-                SIMD3<Float>(0.5, 0.5, 0.5), // Gray
-                SIMD3<Float>(1.0, 0.5, 0.0), // Orange
-                SIMD3<Float>(0.5, 0.0, 1.0), // Purple
-                SIMD3<Float>(0.0, 0.5, 0.5), // Teal
-                SIMD3<Float>(0.5, 1.0, 0.5), // Light Green
-                SIMD3<Float>(1.0, 0.8, 0.6), // Peach
-                SIMD3<Float>(0.6, 0.4, 0.2), // Brown
-                SIMD3<Float>(0.8, 0.8, 0.8), // Light Gray
-                SIMD3<Float>(0.2, 0.2, 0.2), // Dark Gray
-                SIMD3<Float>(0.8, 0.0, 0.0), // Dark Red
-                SIMD3<Float>(0.0, 0.8, 0.0), // Dark Green
-                SIMD3<Float>(0.0, 0.0, 0.8), // Dark Blue
-                SIMD3<Float>(0.8, 0.8, 0.0), // Dark Yellow
-                SIMD3<Float>(0.0, 0.8, 0.8)  // Dark Cyan
-            ]
-            
-            for (index, vertex) in meshData.vertices.enumerated() {
-                vertices.append(Vertex(position: SIMD3<Float>(vertex[0], vertex[1], vertex[2]), color: colors[index % colors.count]))
-            }
-            for (index, triangle) in meshData.triangles.enumerated() {
-                let v0 = SIMD3<Float>(meshData.vertices[Int(triangle[0])])
-                let v1 = SIMD3<Float>(meshData.vertices[Int(triangle[2])])
-                let v2 = SIMD3<Float>(meshData.vertices[Int(triangle[1])])
-                let vec1 = v1 - v0
-                let vec2 = v2 - v0
-                let normal: SIMD3<Float> = simd_normalize(simd_cross(vec1, vec2))
-                faces.append(Face(normal: normal, color: colors[index % colors.count]))
-            }
-            indices = meshData.triangles.flatMap { [$0[0], $0[2], $0[1]] }
-            GZLogFunc(vertices.count)
-            GZLogFunc(indices.count)
-            GZLogFunc()
-        } catch {
-            GZLogFunc(error)
-            GZLogFunc()
-            indices = []
-            vertices = []
-        }
-
-    }
+    let fileName: String
+    let vertices: [Vertex]
+    let indices: [UInt32]
+    let faces: [Face]
     
     func printInfo() {
         if vertices.isEmpty == false {
@@ -156,6 +91,12 @@ class Model: Hashable {
     
     static func == (lhs: Model, rhs: Model) -> Bool {
         return lhs.fileName == rhs.fileName
+    }
+}
+
+extension Model: CustomStringConvertible {
+    var description: String {
+        return "Model(fileName: \(fileName), vertices: \(vertices.count), indices: \(indices.count), faces: \(faces.count))"
     }
 }
 
