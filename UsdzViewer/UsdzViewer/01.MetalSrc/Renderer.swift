@@ -45,6 +45,7 @@ struct ModelUniforms {
     var rotation: Float = 0
     
     let mtkMeshes: [MTKMesh]
+    var frontFacings: [MTLWinding?]
 
     var vertexBuffers: [MTLBuffer]
     var indexBuffers: [MTLBuffer]
@@ -58,8 +59,6 @@ struct ModelUniforms {
     let maxVerticies = 4194303
 //    let maxVerticies = 90000
     
-    let isCounterClockwise: Bool
-
     init?(mtkView: MTKView, fileName: String) {
         guard let dev = mtkView.device else { return nil }
         device = dev
@@ -71,14 +70,17 @@ struct ModelUniforms {
         }
         self.mtkMeshes = mtkMeshes
         
-        if let counterClockwise = Self.isTriangleCounterClockwiseInMTKMesh(mesh: mtkMeshes.first), counterClockwise {
-            isCounterClockwise = true
+        self.frontFacings = []
+        for x in mtkMeshes.enumerated() {
+            let counterClockwise = Self.isTriangleCounterClockwiseInMTKMesh(mesh: x.element)
+            
+            if  let counterClockwise {
+                self.frontFacings.append(counterClockwise ? .counterClockwise : .clockwise)
+            }
+            else {
+                self.frontFacings.append(nil)
+            }
         }
-        else {
-            isCounterClockwise = false
-        }
-        GZLogFunc(isCounterClockwise)
-        GZLogFunc()
         
         for mtkMesh in mtkMeshes {
             GZLogFunc()
@@ -205,14 +207,14 @@ struct ModelUniforms {
                 mainEncoder.setVertexBuffer(modelUniformBuffer, offset: 0, index: 4)
                 mainEncoder.setFragmentBuffer(sceneUniformBuffer, offset: 0, index: 3)
                 mainEncoder.setFragmentBuffer(modelUniformBuffer, offset: 0, index: 4)
-                mainEncoder.setFrontFacing(isCounterClockwise ? .counterClockwise : .clockwise)
                 mainEncoder.setCullMode(.back)
 //                mainEncoder.setTriangleFillMode(.lines)
                 
                 mainEncoder.setFragmentTexture(shadowDepthTexture, index: 0)
                 mainEncoder.setFragmentSamplerState(shadowSampler, index: 0)
                 
-                for mtkMesh in mtkMeshes {
+                for (mtkMeshIndex, mtkMesh) in mtkMeshes.enumerated() {
+                    mainEncoder.setFrontFacing(self.frontFacings[mtkMeshIndex] ?? .clockwise)
                     for (index, vertexBuffer) in mtkMesh.vertexBuffers.enumerated() {
                         mainEncoder.setVertexBuffer(vertexBuffer.buffer, offset: vertexBuffer.offset, index: index)
                     }
@@ -371,6 +373,6 @@ struct ModelUniforms {
         let crossProduct = cross(ab, ac)
 
         // 방향 확인 (반시계: true, 시계: false)
-        return crossProduct.z > 0
+        return crossProduct.z < 0
     }
 }
