@@ -80,7 +80,9 @@ struct ModelUniforms {
             else {
                 self.frontFacings.append(nil)
             }
+            GZLogFunc(self.frontFacings.last??.rawValue)
         }
+        GZLogFunc()
         
         for mtkMesh in mtkMeshes {
             GZLogFunc()
@@ -207,23 +209,30 @@ struct ModelUniforms {
                 mainEncoder.setVertexBuffer(modelUniformBuffer, offset: 0, index: 4)
                 mainEncoder.setFragmentBuffer(sceneUniformBuffer, offset: 0, index: 3)
                 mainEncoder.setFragmentBuffer(modelUniformBuffer, offset: 0, index: 4)
-                mainEncoder.setCullMode(.back)
 //                mainEncoder.setTriangleFillMode(.lines)
                 
                 mainEncoder.setFragmentTexture(shadowDepthTexture, index: 0)
                 mainEncoder.setFragmentSamplerState(shadowSampler, index: 0)
                 
                 for (mtkMeshIndex, mtkMesh) in mtkMeshes.enumerated() {
-                    mainEncoder.setFrontFacing(self.frontFacings[mtkMeshIndex] ?? .clockwise)
-                    for (index, vertexBuffer) in mtkMesh.vertexBuffers.enumerated() {
-                        mainEncoder.setVertexBuffer(vertexBuffer.buffer, offset: vertexBuffer.offset, index: index)
-                    }
-                    for submesh in mtkMesh.submeshes {
-                        mainEncoder.drawIndexedPrimitives(type: submesh.primitiveType,
-                                                          indexCount: submesh.indexCount,
-                                                          indexType: submesh.indexType,
-                                                          indexBuffer: submesh.indexBuffer.buffer,
-                                                          indexBufferOffset: submesh.indexBuffer.offset)
+                    if let frontFacing = self.frontFacings[mtkMeshIndex] {
+                        mainEncoder.setFrontFacing(frontFacing)
+                        if frontFacing == .counterClockwise {
+                            mainEncoder.setCullMode(.front)
+                        }
+                        else {
+                            mainEncoder.setCullMode(.back)
+                        }
+                        for (index, vertexBuffer) in mtkMesh.vertexBuffers.enumerated() {
+                            mainEncoder.setVertexBuffer(vertexBuffer.buffer, offset: vertexBuffer.offset, index: index)
+                        }
+                        for submesh in mtkMesh.submeshes {
+                            mainEncoder.drawIndexedPrimitives(type: submesh.primitiveType,
+                                                              indexCount: submesh.indexCount,
+                                                              indexType: submesh.indexType,
+                                                              indexBuffer: submesh.indexBuffer.buffer,
+                                                              indexBufferOffset: submesh.indexBuffer.offset)
+                        }
                     }
 //                    break
                 }
@@ -373,6 +382,14 @@ struct ModelUniforms {
         let crossProduct = cross(ab, ac)
 
         // 방향 확인 (반시계: true, 시계: false)
-        return crossProduct.z < 0
+        if crossProduct.z < 0 {
+            return true
+        }
+        else if crossProduct.z > 0 {
+            return false
+        }
+        else {
+            return nil
+        }
     }
 }

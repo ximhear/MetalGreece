@@ -63,6 +63,6 @@ fragment float4 main_fragment(VertexOut in [[stage_in]],
     // normal to color
     float3 normal = model.normalMatrix * in.normal;
     float3 normalColor = (normal + 1.0) * 0.5;
-//    return float4(normalColor.x, normalColor.y, 1 - normalColor.z, 1);
+    return float4(normalColor.x, normalColor.y, 1 - normalColor.z, 1);
     return float4(normalColor, 1);
 }
