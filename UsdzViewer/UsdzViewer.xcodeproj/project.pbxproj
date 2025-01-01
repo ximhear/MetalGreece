@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		ECD462632D25D15300AA2D85 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = ECD462622D25D15300AA2D85 /* ZIPFoundation */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		ECCD25E92D1ED13900CE44D1 /* UsdzViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UsdzViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ECD462632D25D15300AA2D85 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = UsdzViewer;
 			packageProductDependencies = (
+				ECD462622D25D15300AA2D85 /* ZIPFoundation */,
 			);
 			productName = UsdzViewer;
 			productReference = ECCD25E92D1ED13900CE44D1 /* UsdzViewer.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = ECCD25E02D1ED13900CE44D1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				ECD462612D25D15300AA2D85 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ECCD25EA2D1ED13900CE44D1 /* Products */;
 			projectDirPath = "";
@@ -324,6 +333,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		ECD462612D25D15300AA2D85 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		ECD462622D25D15300AA2D85 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = ECD462612D25D15300AA2D85 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = ECCD25E12D1ED13900CE44D1 /* Project object */;
 }

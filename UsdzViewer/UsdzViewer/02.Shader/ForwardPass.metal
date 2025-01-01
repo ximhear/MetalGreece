@@ -43,7 +43,7 @@ vertex VertexOut main_vertex(VertexIn in [[stage_in]],
 
     out.position = scene.cameraViewProjMatrix * worldPos;
     out.uv = in.uv;
-    out.normal = in.normal;
+    out.normal = normalize(model.normalMatrix * in.normal);
 
     float4 lightPos = scene.lightViewProjMatrix * worldPos;
     out.shadowCoord = (lightPos.xyz / lightPos.w) * float3(0.5, 0.5, 1) * float3(1, -1, 1) + float3(0.5, 0.5, 0.0);
@@ -52,16 +52,23 @@ vertex VertexOut main_vertex(VertexIn in [[stage_in]],
 }
 
 fragment float4 main_fragment(VertexOut in [[stage_in]],
-                              depth2d<float> shadowMap [[texture(0)]],
-                              sampler shadowSampler [[sampler(0)]],
+                              texture2d<float> texture [[texture(0)]],
+                              sampler sampler [[sampler(0)]],
                               constant SceneUniforms &scene [[buffer(3)]],
                               constant ModelUniforms &model [[buffer(4)]],
                               constant Face *faces [[buffer(2)]],
                               uint primID [[primitive_id]])
 {
+    
+    float4 sampledColor = texture.sample(sampler, float2(in.uv.x, 1 - in.uv.y));
+    float3 lightDirection = float3(0, 0, -1);
+//    float strength = dot(lightDirection, float3(normalColor.x, normalColor.y, 1 - normalColor.z));
+    float strength = dot(lightDirection, in.normal) * 0.2;
+    return sampledColor + float4(strength, strength, strength, 0);
+    return float4(sampledColor.xyz * strength, 1);
 //    return float4(0, 1, 0, 1);
     // normal to color
-    float3 normal = model.normalMatrix * in.normal;
+    float3 normal = in.normal;//model.normalMatrix * in.normal;
     float3 normalColor = (normal + 1.0) * 0.5;
     return float4(normalColor.x, normalColor.y, 1 - normalColor.z, 1);
     return float4(normalColor, 1);

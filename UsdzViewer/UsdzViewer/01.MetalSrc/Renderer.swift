@@ -45,6 +45,7 @@ struct ModelUniforms {
     var rotation: Float = 0
     
     let mtkMeshes: [MTKMesh]
+    let usdzMeshes: UsdzMeshData
     var frontFacings: [MTLWinding?]
 
     var vertexBuffers: [MTLBuffer]
@@ -68,7 +69,21 @@ struct ModelUniforms {
         guard let mtkMeshes = UsdzLoader().loadUSDZAsset(named: fileName, device: device) else {
             return nil
         }
+        guard let usdzMeshes = UsdzLoader().loadUSDZ(named: fileName, device: device) else {
+            return nil
+        }
+        
         self.mtkMeshes = mtkMeshes
+        self.usdzMeshes = usdzMeshes
+        
+        for (mtkMeshIndex, mtkMesh) in usdzMeshes.mtkMeshes.enumerated() {
+            GZLogFunc("[\(mtkMeshIndex)] : \(mtkMesh.submeshes.count)")
+        }
+        for (mtkMeshIndex, textures) in usdzMeshes.meshTextures.enumerated() {
+            GZLogFunc("[\(mtkMeshIndex)] : \(textures.count)")
+        }
+        GZLogFunc()
+
         
         self.frontFacings = []
         for x in mtkMeshes.enumerated() {
@@ -96,6 +111,8 @@ struct ModelUniforms {
             }
             GZLogFunc()
         }
+        
+        var attributeCount = mtkMeshes.first?.vertexDescriptor.attributes.count == 5 ? 5 : 3
         GZLogFunc()
         
         vertexBuffers = []
@@ -137,6 +154,17 @@ struct ModelUniforms {
         vertexDescriptor.attributes[2].offset = 0
         vertexDescriptor.attributes[2].bufferIndex = 2
         
+//        if attributeCount == 5 {
+//            // joint indices
+//            vertexDescriptor.attributes[3].format = .ushort3
+//            vertexDescriptor.attributes[3].offset = 0
+//            vertexDescriptor.attributes[3].bufferIndex = 3
+//            // joint weights
+//            vertexDescriptor.attributes[4].format = .float3
+//            vertexDescriptor.attributes[4].offset = 0
+//            vertexDescriptor.attributes[4].bufferIndex = 4
+//        }
+        
         vertexDescriptor.layouts[0].stride = 12
         vertexDescriptor.layouts[0].stepFunction = .perVertex
         
@@ -145,10 +173,25 @@ struct ModelUniforms {
         
         vertexDescriptor.layouts[2].stride = 8
         vertexDescriptor.layouts[2].stepFunction = .perVertex
+        
+//        if attributeCount == 5 {
+//            vertexDescriptor.layouts[3].stride = 6
+//            vertexDescriptor.layouts[3].stepFunction = .constant
+//            
+//            vertexDescriptor.layouts[4].stride = 12
+//            vertexDescriptor.layouts[4].stepFunction = .constant
+//        }
+        
+
 
         // Main Pipeline (with shadow map)
         let mainPSODesc = MTLRenderPipelineDescriptor()
-        mainPSODesc.vertexFunction = library.makeFunction(name: "main_vertex")
+//        if attributeCount == 5 {
+//            mainPSODesc.vertexFunction = library.makeFunction(name: "main_vertex5")
+//        }
+//        else {
+            mainPSODesc.vertexFunction = library.makeFunction(name: "main_vertex")
+//        }
         mainPSODesc.fragmentFunction = library.makeFunction(name: "main_fragment")
         mainPSODesc.vertexDescriptor = vertexDescriptor
         mainPSODesc.colorAttachments[0].pixelFormat = mtkView.colorPixelFormat
@@ -180,6 +223,75 @@ struct ModelUniforms {
     }
 
     func draw(in view: MTKView) {
+        rotation += 0.01
+        
+        guard let commandBuffer = commandQueue.makeCommandBuffer(),
+              let drawable = view.currentDrawable,
+              let rpd = view.currentRenderPassDescriptor else { return }
+        
+        modelUniforms.modelMatrix = float4x4(translation: [viewX, viewY, viewZ]) * rotateX(-20 / 180.0 * Float.pi) * float4x4(translation: [0, 0, 0]) * rotateY(rotation)
+        modelUniforms.normalMatrix = calculateNormalMatrix(from: modelUniforms.modelMatrix)
+        sceneUniforms.cameraViewProjMatrix = sceneUniforms.cameraProjMatrix
+
+        memcpy(sceneUniformBuffer.contents(), &sceneUniforms, MemoryLayout<SceneUniforms>.size)
+        memcpy(modelUniformBuffer.contents(), &modelUniforms, MemoryLayout<ModelUniforms>.size)
+
+        rpd.depthAttachment.clearDepth = 1.0
+        if usdzMeshes.mtkMeshes.count > 0 {
+            let samplerDesc = MTLSamplerDescriptor()
+            samplerDesc.minFilter = .linear
+            samplerDesc.magFilter = .linear
+            samplerDesc.compareFunction = .less
+            guard let shadowSampler = device.makeSamplerState(descriptor: samplerDesc) else { return }
+            
+            if let mainEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: rpd) {
+                mainEncoder.setRenderPipelineState(mainRenderPipeline)
+                mainEncoder.setDepthStencilState(depthStencilState)
+                mainEncoder.setVertexBuffer(sceneUniformBuffer, offset: 0, index: 3)
+                mainEncoder.setVertexBuffer(modelUniformBuffer, offset: 0, index: 4)
+                mainEncoder.setFragmentBuffer(sceneUniformBuffer, offset: 0, index: 3)
+                mainEncoder.setFragmentBuffer(modelUniformBuffer, offset: 0, index: 4)
+//                mainEncoder.setTriangleFillMode(.lines)
+                
+                mainEncoder.setFragmentSamplerState(shadowSampler, index: 0)
+                
+                for (mtkMeshIndex, mtkMesh) in usdzMeshes.mtkMeshes.enumerated() {
+                    if let frontFacing = self.frontFacings[mtkMeshIndex] {
+                        mainEncoder.setFrontFacing(frontFacing)
+                        if frontFacing == .counterClockwise {
+                            mainEncoder.setCullMode(.front)
+                        }
+                        else {
+                            mainEncoder.setCullMode(.back)
+                        }
+                        for (index, vertexBuffer) in mtkMesh.vertexBuffers.enumerated() {
+                            mainEncoder.setVertexBuffer(vertexBuffer.buffer, offset: vertexBuffer.offset, index: index)
+                        }
+                        for (submeshIndex, submesh) in mtkMesh.submeshes.enumerated() {
+                            var texture: MTLTexture? = nil
+                            if mtkMeshIndex < usdzMeshes.meshTextures.count {
+                                if submeshIndex < usdzMeshes.meshTextures[mtkMeshIndex].count {
+                                    texture = usdzMeshes.meshTextures[mtkMeshIndex][submeshIndex]
+                                }
+                            }
+                            mainEncoder.setFragmentTexture(texture, index: 0)
+                            mainEncoder.drawIndexedPrimitives(type: submesh.primitiveType,
+                                                              indexCount: submesh.indexCount,
+                                                              indexType: submesh.indexType,
+                                                              indexBuffer: submesh.indexBuffer.buffer,
+                                                              indexBufferOffset: submesh.indexBuffer.offset)
+                        }
+                    }
+//                    break
+                }
+                mainEncoder.endEncoding()
+            }
+        }
+
+        commandBuffer.present(drawable)
+        commandBuffer.commit()
+    }
+    func draw1(in view: MTKView) {
         rotation += 0.01
 //        rotation = Float.pi / 2.0
         
